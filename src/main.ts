@@ -12,6 +12,7 @@ import { PostFeed } from "./hive/PostFeed.ts";
 import { getGhosts, getCommunities } from "./hive/HiveSocial.ts";
 import { postScore } from "./hive/HiveAuth.ts";
 import { RaceStrip } from "./race/RaceStrip.ts";
+import { CONTEST, weekId, msUntilWeekEnd, formatCountdown, type LeaderboardFile } from "./contest.ts";
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -65,6 +66,64 @@ const hiveStatus = $("hive-status");
 const teamRow = $("team-row");
 const toast = $("toast");
 const race = new RaceStrip($("race-strip"), 300);
+
+// --- weekly sponsored contest: leaderboard card (read-only, fed by the indexer) --------
+const contestEl = $("contest");
+const contestWeekEl = $("contest-week");
+const contestCountEl = $("contest-count");
+const contestPrizeEl = $("contest-prize");
+const contestListEl = $("contest-list") as HTMLOListElement;
+const contestEmptyEl = $("contest-empty");
+const contestNote = $("contest-note");
+let leaderboard: LeaderboardFile | null = null;
+
+const openContest = () => contestEl.classList.add("open");
+$("contest-toggle").addEventListener("click", () => contestEl.classList.toggle("open"));
+contestPrizeEl.textContent = CONTEST.prizeText;
+
+async function loadLeaderboard() {
+  const override = new URLSearchParams(location.search).get("lb"); // dev: point at a test source
+  const url = override || CONTEST.dataUrl;
+  try {
+    const res = await fetch(`${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`, { cache: "no-store" });
+    leaderboard = await res.json();
+  } catch {
+    leaderboard = null;
+  }
+  renderContest();
+}
+
+function renderContest() {
+  const week = weekId();
+  contestWeekEl.textContent = "· " + week;
+  const rows = leaderboard?.contests?.[week] ?? [];
+  contestListEl.innerHTML = "";
+  contestEmptyEl.style.display = rows.length ? "none" : "block";
+  rows.slice(0, CONTEST.topN).forEach((r, i) => {
+    const li = document.createElement("li");
+    li.className = "lb-row" + (hiveAccount && r.account === hiveAccount ? " me" : "");
+    const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : String(i + 1);
+    li.innerHTML =
+      `<span class="lb-rank">${medal}</span>` +
+      `<img src="https://images.hive.blog/u/${r.account}/avatar" alt="" loading="lazy" />` +
+      `<span class="lb-name">@${r.account}</span>` +
+      `<span class="lb-score">${r.score.toLocaleString()}</span>`;
+    contestListEl.appendChild(li);
+  });
+  // if the player is logged in but off the visible top-N, show their standing
+  if (hiveAccount && rows.length) {
+    const idx = rows.findIndex((r) => r.account === hiveAccount);
+    contestNote.textContent = idx >= 0
+      ? `You're #${idx + 1} of ${rows.length} this week — best ${rows[idx].score.toLocaleString()}.`
+      : "You're not on this week's board yet — post a score to enter.";
+  }
+}
+
+// live countdown to Monday 00:00 UTC
+function tickCountdown() { contestCountEl.textContent = formatCountdown(msUntilWeekEnd()); }
+tickCountdown();
+setInterval(tickCountdown, 30000);
+void loadLeaderboard();
 
 let hiveAccount = "";
 let lastScore = 0;
@@ -122,6 +181,7 @@ async function loadHive(user: string) {
     }
     teamRow.style.display = "inline-flex";
     hiveStatus.textContent = ghosts.length ? `@${user} · racing ${ghosts.length} rivals` : `@${user} · (no follows to race)`;
+    renderContest(); // highlight the player's row / standing now that we know who they are
     updatePostBtn();
   } catch {
     hiveStatus.textContent = "couldn't load @" + user;
@@ -135,9 +195,14 @@ postScoreBtn.addEventListener("click", async () => {
   if (!hiveAccount) return;
   postScoreBtn.disabled = true;
   hiveStatus.textContent = "posting score…";
-  const r = await postScore(hiveAccount, communitySelect.value, lastScore, currentSpec.meta.title);
+  const r = await postScore(hiveAccount, communitySelect.value, lastScore, currentSpec.meta.title, weekId());
   hiveStatus.textContent = r.ok ? "score posted on-chain ✓" : "post failed: " + (r.error ?? "");
-  showToast(r.ok ? "✓ Score posted to Hive" : "Post failed");
+  showToast(r.ok ? "✓ Score entered in this week's contest" : "Post failed");
+  if (r.ok) {
+    contestNote.textContent = "⏳ Your run is on-chain — you'll appear on the board within ~15 min (next indexer run).";
+    openContest();
+    setTimeout(() => void loadLeaderboard(), 20000); // optimistic re-check
+  }
   updatePostBtn();
 });
 overlayBtn.addEventListener("click", () => {
@@ -186,6 +251,7 @@ async function boot() {
   if (new URLSearchParams(location.search).get("dev") === "1") {
     $("panel").style.display = "block";
     $("app").style.height = "auto"; // let the page scroll to reach the dev panel
+    contestEl.classList.add("open"); // show the contest card expanded while developing
   }
 
   // Pixi's RAF loop; the engine only advances when a run is started and not paused

@@ -1,0 +1,35 @@
+name: Contest indexer
+
+on:
+  schedule:
+    - cron: "*/15 * * * *" # every 15 minutes (GitHub may delay/skip under load)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: indexer
+  cancel-in-progress: false
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Stream chain and aggregate scores
+        run: node indexer/index.mjs
+      - name: Commit updated leaderboard
+        run: |
+          git config user.name "hive-runner-bot"
+          git config user.email "hive-runner-bot@users.noreply.github.com"
+          git add data/leaderboard.json indexer/state.json
+          if git diff --cached --quiet; then
+            echo "no changes"
+          else
+            git commit -m "chore(indexer): update leaderboard [skip ci]"
+            git push
+          fi

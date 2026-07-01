@@ -25,17 +25,26 @@ export function login(username: string): Promise<{ ok: boolean; error?: string }
   });
 }
 
-/** Broadcast a score to the chain as a custom_json (free, posting auth). */
+/**
+ * Broadcast a score to the chain as a `hive-runner` custom_json (free, posting auth).
+ * The `contest` week enters the weekly leaderboard; `community` reps the player's team.
+ * The indexer re-derives the authoritative week from the block timestamp, so a spoofed
+ * `contest` value can't place a score in a different week.
+ */
 export function postScore(
   username: string,
   community: string,
   score: number,
   game: string,
+  contest: string,
 ): Promise<{ ok: boolean; error?: string }> {
   return new Promise((resolve) => {
     const kc = keychain();
     if (!kc) return resolve({ ok: false, error: "Hive Keychain extension not found" });
-    const json = JSON.stringify({ app: "hive-runner/0.1", action: "score", game, community, score });
+    const json = JSON.stringify({
+      app: "hive-runner/0.2", action: "score", game, community, score, contest,
+      ts: Math.floor(Date.now() / 1000),
+    });
     kc.requestCustomJson(username, "hive-runner", "Posting", json, `Post score: ${score}`,
       (r: KeychainResponse) => resolve({ ok: !!r.success, error: r.message || r.error }),
     );

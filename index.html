@@ -50,6 +50,26 @@
       .ctrl-row button { padding: 6px 18px; font-size: 14px; }
       #toast { position: fixed; left: 50%; transform: translateX(-50%); top: 16px; background: #10261c; color: #8dff9e; border: 1px solid #2a5; padding: 9px 16px; border-radius: 10px; font-size: 13px; z-index: 50; opacity: 0; pointer-events: none; transition: opacity .3s; }
       #toast.show { opacity: 1; }
+      /* weekly contest — collapsible so it never eats the game's viewport space */
+      #contest { width: min(460px, 94vw); background: #14141f; border: 1px solid #262633; border-radius: 10px; font-size: 12px; }
+      .contest-head { display: flex; align-items: center; gap: 8px; padding: 7px 10px; cursor: pointer; user-select: none; }
+      .contest-head .grow { flex: 1; }
+      .contest-head b { color: #ffd76a; }
+      #contest-count { color: #9fd3ff; }
+      #contest-caret { color: #7a7a92; transition: transform .15s; }
+      #contest.open #contest-caret { transform: rotate(90deg); }
+      #contest-body { display: none; padding: 0 10px 10px; }
+      #contest.open #contest-body { display: block; }
+      #contest-prize { color: #b6b6c8; margin: 0 0 6px; }
+      #contest-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; max-height: 190px; overflow-y: auto; }
+      .lb-row { display: flex; align-items: center; gap: 8px; padding: 3px 6px; border-radius: 7px; background: #1b1b28; }
+      .lb-row.me { background: #14301f; border: 1px solid #2a5; }
+      .lb-rank { width: 20px; text-align: right; color: #8a8aa0; font-weight: 700; }
+      .lb-row img { width: 22px; height: 22px; border-radius: 50%; background: #222; object-fit: cover; }
+      .lb-name { flex: 1; color: #e8e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .lb-score { font-weight: 800; color: #8dff9e; }
+      #contest-note { color: #8a8aa0; margin-top: 7px; }
+      #contest-empty { color: #8a8aa0; padding: 6px 2px; }
     </style>
   </head>
   <body>
@@ -80,6 +100,21 @@
         <button id="playagain">↻ Play again</button>
       </div>
       <div id="race-strip"></div>
+      <div id="contest">
+        <div class="contest-head" id="contest-toggle">
+          <span>🏆 <b>Weekly Contest</b></span>
+          <span id="contest-week" class="muted"></span>
+          <span class="grow"></span>
+          <span id="contest-count"></span>
+          <span id="contest-caret">▸</span>
+        </div>
+        <div id="contest-body">
+          <p id="contest-prize"></p>
+          <ol id="contest-list"></ol>
+          <div id="contest-empty">No scores yet this week — be the first! Play, then <b>Post score</b> to enter.</div>
+          <div id="contest-note"></div>
+        </div>
+      </div>
       <p class="hint" id="hint"></p>
       <div id="panel">
         <h2>Hive energy (live)</h2>

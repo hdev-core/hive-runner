@@ -3,6 +3,11 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+    # the indexer commits leaderboard data on a schedule; those commits are served
+    # to the client via the raw GitHub URL, so they must NOT trigger a full redeploy.
+    paths-ignore:
+      - "data/**"
+      - "indexer/state.json"
   workflow_dispatch:
 
 permissions:
