@@ -8,6 +8,7 @@ import { applyHooks } from "./runtime/hooks.ts";
 import { createEngine, type ArchetypeEngine } from "./runtime/createEngine.ts";
 import type { EngineState } from "./runtime/FallingEngine.ts";
 import { HiveFeed } from "./hive/HiveFeed.ts";
+import { PostFeed } from "./hive/PostFeed.ts";
 import { getGhosts, getCommunities } from "./hive/HiveSocial.ts";
 import { postScore } from "./hive/HiveAuth.ts";
 import { RaceStrip } from "./race/RaceStrip.ts";
@@ -33,6 +34,11 @@ hiveFeed.onBlock = (info) => {
   vOps.textContent = `@${info.witness || "?"} · ${info.opCount} ops · ${info.transfers} xfer · ${info.posts} posts${info.topTransfer ? ` · top ${Math.round(info.topTransfer.amount)} ${info.topTransfer.symbol}` : ""}`;
 };
 hiveFeed.start();
+
+// live, read-only stream of real Hive posts -> background billboards + collectible post-coins.
+// Starts on the global fresh-post firehose; switches to the player's own feed once they log in.
+const postFeed = new PostFeed();
+postFeed.start();
 const vBaseline = $("v-baseline");
 const vActivity = $("v-activity");
 const vBonusFeed = $("v-bonus");
@@ -105,6 +111,7 @@ async function loadHive(user: string) {
       () => showToast("🏆 You beat your Hive friends to the line!"),
     );
     race.setPlayerAvatar(user);
+    postFeed.setAccount(user); // billboards + post-coins now surface posts from accounts you follow
     hiveAccount = user;
     const comms = await getCommunities(user);
     communitySelect.innerHTML = "";
@@ -192,6 +199,7 @@ async function boot() {
   });
 
   start(false); // set up the flagship game in a "ready" state — press Start to play
+  if (new URLSearchParams(location.search).get("play") === "1") beginPlay(); // dev: skip the Start overlay
 }
 
 function start(autostart = false) {
@@ -231,7 +239,7 @@ function start(autostart = false) {
   vBasket.textContent = `×${applied.basketWidthFactor}`;
   vScoreMult.textContent = `×${applied.scoreMultiplier}`;
 
-  engine = createEngine(app, applied.effectiveSpec, applied.bonusLives, applied.scoreMultiplier, onState, hiveFeed);
+  engine = createEngine(app, applied.effectiveSpec, applied.bonusLives, applied.scoreMultiplier, onState, hiveFeed, postFeed, showToast);
   engine.mount();
 
   setOverlay(autostart ? "none" : "start"); // show "▶ Start" over the ready scene

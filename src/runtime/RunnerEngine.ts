@@ -10,6 +10,7 @@ import type { EngineState } from "./engineState.ts";
 import { Background } from "./Background.ts";
 import { attachAvatar } from "./avatar.ts";
 import type { HiveFeed, BlockInfo } from "../hive/HiveFeed.ts";
+import type { PostFeed, HivePost } from "../hive/PostFeed.ts";
 
 interface Obstacle {
   gfx: Graphics;
@@ -19,17 +20,24 @@ interface Obstacle {
   w: number;
   h: number;
   special?: boolean; // block/whale coin — show a +points popup on collect
+  post?: HivePost;   // post-coin — surface author + title on collect
 }
+
+interface Billboard { node: Container; vx: number; w: number; }
 
 const GRAVITY = 1.0;
 
 export class RunnerEngine {
   private background!: Background;
   private bg = new Graphics();
+  private scene = new Container();   // billboards (post scenery), behind the gameplay layer
   private layer = new Container();
   private avatar = new Graphics();
   private hud = new Container();
   private obstacles: Obstacle[] = [];
+  private billboards: Billboard[] = [];
+  private billboardTimer = 2600;   // ms until the next post-billboard drifts in
+  private postCoinTimer = 5200;    // ms until the next collectible post-coin
   private spawnTimers = new Map<string, number>();
   private scoreText!: Text;
   private livesText!: Text;
@@ -75,6 +83,8 @@ export class RunnerEngine {
     private scoreMultiplier: number,
     onState?: (s: EngineState) => void,
     private hiveFeed?: HiveFeed,
+    private postFeed?: PostFeed,
+    private onToast?: (msg: string) => void,
   ) {
     this.onState = onState;
     const avatarDef = spec.entities.find((e) => e.role === "avatar");
@@ -98,7 +108,7 @@ export class RunnerEngine {
   mount() {
     const { app, spec } = this;
     this.background = new Background(spec);
-    app.stage.addChild(this.background.container, this.bg, this.layer, this.avatar, this.hud);
+    app.stage.addChild(this.background.container, this.bg, this.scene, this.layer, this.avatar, this.hud);
 
     this.drawRunner();
     this.avatar.position.set(this.charX, this.charY);
@@ -138,9 +148,11 @@ export class RunnerEngine {
     this.animateRun(dt, f);
     this.background.update(dt, this.currentScrollSpeed());
     this.drawGround();
+    this.moveBillboards(f); // post scenery scrolls whether playing or draining
 
     if (this.phase === "play") {
       this.spawnTick(dt);
+      this.postSceneryTick(dt);
       this.moveAndCollide(f);
       this.levelTimeMs += dt;
       this.scoreExact += (dt / 100) * this.scoreMultiplier;
@@ -197,6 +209,86 @@ export class RunnerEngine {
     gfx.position.set(this.spec.world.width + r + 20, y);
     this.layer.addChild(gfx);
     this.obstacles.push({ gfx, vx: -this.currentScrollSpeed(), kind: "pickup", value, w: r * 2, h: r * 2, special: true });
+  }
+
+  // --- posts in the world: billboards (scenery) + post-coins (collectible) ----
+
+  private postSceneryTick(dt: number) {
+    if (!this.postFeed) return;
+    this.billboardTimer -= dt;
+    if (this.billboardTimer <= 0) {
+      this.spawnBillboard();
+      this.billboardTimer = 6500 + Math.random() * 4500; // 6.5–11s apart
+    }
+    this.postCoinTimer -= dt;
+    if (this.postCoinTimer <= 0) {
+      this.spawnPostCoin();
+      this.postCoinTimer = 9000 + Math.random() * 5000;  // 9–14s apart
+    }
+  }
+
+  // A drifting signpost showing a real fresh Hive post (or, once you log in, a post
+  // from someone you follow). Pure scenery — it sits behind the action and never collides.
+  private spawnBillboard() {
+    const post = this.postFeed?.next();
+    if (!post) return;
+    const W = 194, boardH = 66;
+    const boardTop = this.groundY - 214;
+    const node = new Container();
+
+    const pole = new Graphics().rect(-3, boardTop + boardH, 6, this.groundY - (boardTop + boardH)).fill({ color: 0x3a3320, alpha: 0.8 });
+    const board = new Graphics()
+      .roundRect(-W / 2, boardTop, W, boardH, 8).fill({ color: 0x121826, alpha: 0.9 })
+      .roundRect(-W / 2, boardTop, W, boardH, 8).stroke({ width: 2, color: 0x5a9bff, alpha: 0.7 });
+    node.addChild(pole, board);
+
+    // author avatar (small) top-left of the board
+    const av = new Graphics();
+    av.position.set(-W / 2 + 22, boardTop + 22);
+    node.addChild(av);
+    attachAvatar(av, post.author, 14);
+
+    const handle = new Text({
+      text: "@" + post.author + (post.community ? ` · ${post.community}` : ""),
+      style: { fontFamily: "system-ui", fontSize: 10, fontWeight: "700", fill: 0x9fd3ff },
+    });
+    handle.position.set(-W / 2 + 42, boardTop + 8);
+    const title = new Text({
+      text: post.title,
+      style: { fontFamily: "system-ui", fontSize: 12, fontWeight: "600", fill: 0xffffff, wordWrap: true, wordWrapWidth: W - 24, lineHeight: 15 },
+    });
+    title.position.set(-W / 2 + 12, boardTop + 26);
+    node.addChild(handle, title);
+
+    node.position.x = this.spec.world.width + W;
+    node.alpha = 0.94;
+    this.scene.addChild(node);
+    this.billboards.push({ node, vx: -this.currentScrollSpeed(), w: W });
+  }
+
+  private moveBillboards(f: number) {
+    for (let i = this.billboards.length - 1; i >= 0; i--) {
+      const b = this.billboards[i];
+      // keep billboards in step with the current world speed (they may outlive a level ramp)
+      b.node.position.x += -this.currentScrollSpeed() * f;
+      if (b.node.position.x + b.w < -20) { b.node.destroy(); this.billboards.splice(i, 1); }
+    }
+  }
+
+  // A collectible coin carrying a real post — grab it for points and a peek at the post.
+  private spawnPostCoin() {
+    const post = this.postFeed?.next();
+    if (!post) return;
+    const r = 22;
+    const gfx = new Graphics().circle(0, 0, r).fill(0xc86bff);
+    gfx.circle(0, 0, r).stroke({ width: 2, color: 0xffffff, alpha: 0.8 });
+    const badge = new Text({ text: "📝", style: { fontFamily: "system-ui", fontSize: 16, align: "center" } });
+    badge.anchor.set(0.5); badge.position.set(0, -r - 14);
+    gfx.addChild(badge);
+    attachAvatar(gfx, post.author, r);
+    gfx.position.set(this.spec.world.width + r + 20, this.groundY - 118);
+    this.layer.addChild(gfx);
+    this.obstacles.push({ gfx, vx: -this.currentScrollSpeed(), kind: "pickup", value: 20, w: r * 2, h: r * 2, special: true, post });
   }
 
   // floating "+points" so it's clear you earn game points (not the labeled HIVE amount)
@@ -340,6 +432,7 @@ export class RunnerEngine {
       this.state.score = Math.floor(this.scoreExact);
       this.flash(0x6cff8a);
       if (o.special) this.floatPoints(o.gfx.position.x, o.gfx.position.y, `+${gained}`);
+      if (o.post) this.onToast?.(`📝 @${o.post.author}: ${o.post.title}`);
     } else {
       this.state.lives -= 1;
       this.flash(0xff5a5a);
@@ -498,10 +591,13 @@ export class RunnerEngine {
     this.app.canvas.removeEventListener("pointerdown", this.boundTap);
     for (const o of this.obstacles) o.gfx.destroy();
     this.obstacles = [];
+    for (const b of this.billboards) b.node.destroy();
+    this.billboards = [];
     this.banner?.destroy();
     this.overlay?.destroy();
     this.background?.destroy();
     this.bg.destroy();
+    this.scene.destroy({ children: true });
     this.layer.destroy({ children: true });
     this.avatar.destroy();
     this.hud.destroy({ children: true });
