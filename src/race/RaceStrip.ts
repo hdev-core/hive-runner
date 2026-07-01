@@ -19,6 +19,8 @@ export class RaceStrip {
   private racers: Racer[] = [];
   private target: number;
   private onPass?: (name: string) => void;
+  private onFinish?: () => void;
+  private playerFinished = false;
 
   constructor(private root: HTMLElement, target = 300) {
     this.target = target;
@@ -31,8 +33,10 @@ export class RaceStrip {
     this.root.append(this.caption, this.track);
   }
 
-  setGhosts(ghosts: Ghost[], onPass?: (name: string) => void) {
+  setGhosts(ghosts: Ghost[], onPass?: (name: string) => void, onFinish?: () => void) {
     this.onPass = onPass;
+    this.onFinish = onFinish;
+    this.playerFinished = false;
     this.track.innerHTML = "";
     this.racers = [];
     if (!ghosts.length) { this.root.style.display = "none"; return; }
@@ -68,6 +72,7 @@ export class RaceStrip {
   update(score: number, elapsedMs: number) {
     if (!this.racers.length) return;
     const playerProg = Math.min(1, score / this.target);
+    if (!this.playerFinished && playerProg >= 1) { this.playerFinished = true; this.onFinish?.(); }
     for (const r of this.racers) {
       if (r.isPlayer) continue;
       const ghostProg = Math.min(1, (r.pace * (elapsedMs / 1000)) / this.target);
@@ -93,6 +98,7 @@ export class RaceStrip {
 
   reset() {
     for (const r of this.racers) r.passed = false;
+    this.playerFinished = false;
     this.layout(0, 0);
   }
 }

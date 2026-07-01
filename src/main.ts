@@ -52,7 +52,9 @@ window.addEventListener("error", (e) => showFatal("Startup error: " + e.message)
 const hiveUser = $("hive-user") as HTMLInputElement;
 const communitySelect = $("community-select") as HTMLSelectElement;
 const postScoreBtn = $("post-score") as HTMLButtonElement;
-const playAgainBtn = $("playagain") as HTMLButtonElement;
+const overlayBtn = $("playagain") as HTMLButtonElement; // contextual: Start / Resume / Play again
+const startBtn = $("start-btn") as HTMLButtonElement;
+const pauseBtn = $("pause-btn") as HTMLButtonElement;
 const hiveStatus = $("hive-status");
 const teamRow = $("team-row");
 const toast = $("toast");
@@ -62,6 +64,9 @@ let hiveAccount = "";
 let lastScore = 0;
 let lastGameOver = false;
 let lastRaceMs = -1;
+let started = false;   // has the current run begun?
+let paused = false;
+let overlayMode: "start" | "resume" | "playagain" | "none" = "none";
 
 function showToast(msg: string) {
   toast.textContent = msg;
@@ -70,12 +75,35 @@ function showToast(msg: string) {
 }
 function updatePostBtn() { postScoreBtn.disabled = !(lastGameOver && hiveAccount); }
 
+function setOverlay(mode: "start" | "resume" | "playagain" | "none") {
+  overlayMode = mode;
+  if (mode === "none") { overlayBtn.style.display = "none"; return; }
+  overlayBtn.textContent = mode === "start" ? "▶ Start" : mode === "resume" ? "▶ Resume" : "↻ Play again";
+  overlayBtn.style.display = "block";
+}
+function updatePauseBtn() {
+  pauseBtn.disabled = !started || lastGameOver;
+  pauseBtn.textContent = paused ? "▶ Resume" : "⏸ Pause";
+}
+function beginPlay() { started = true; paused = false; setOverlay("none"); updatePauseBtn(); }
+function resumePlay() { paused = false; setOverlay("none"); updatePauseBtn(); }
+function togglePause() {
+  if (!started || lastGameOver) return;
+  paused = !paused;
+  setOverlay(paused ? "resume" : "none");
+  updatePauseBtn();
+}
+
 async function loadHive(user: string) {
   if (!user) return;
   hiveStatus.textContent = "loading…";
   try {
     const ghosts = await getGhosts(user, 6);
-    race.setGhosts(ghosts, (name) => showToast(`🏁 Passed @${name}!`));
+    race.setGhosts(
+      ghosts,
+      (name) => showToast(`🏁 Passed @${name}!`),
+      () => showToast("🏆 You beat your Hive friends to the line!"),
+    );
     race.setPlayerAvatar(user);
     hiveAccount = user;
     const comms = await getCommunities(user);
@@ -105,7 +133,13 @@ postScoreBtn.addEventListener("click", async () => {
   showToast(r.ok ? "✓ Score posted to Hive" : "Post failed");
   updatePostBtn();
 });
-playAgainBtn.addEventListener("click", () => start());
+overlayBtn.addEventListener("click", () => {
+  if (overlayMode === "playagain") start(true);
+  else if (overlayMode === "resume") resumePlay();
+  else beginPlay();
+});
+startBtn.addEventListener("click", () => { if (!started && !lastGameOver) beginPlay(); else start(true); });
+pauseBtn.addEventListener("click", () => togglePause());
 {
   const p = new URLSearchParams(location.search).get("hive");
   if (p) { hiveUser.value = p; void loadHive(cleanName(p)); }
@@ -131,9 +165,14 @@ async function boot() {
     return;
   }
   host.appendChild(app.canvas);
-  host.appendChild(playAgainBtn); // keep the button in the host, layered above the canvas
-  // tap/click the game once it's over to restart (mobile-friendly backup to the button)
-  app.canvas.addEventListener("pointerdown", () => { if (lastGameOver) start(); });
+  host.appendChild(overlayBtn); // keep the button in the host, layered above the canvas
+  // tap the game to start / resume / restart (mobile-friendly); this listener runs before the
+  // engine's jump listener, so stopImmediatePropagation prevents an accidental jump.
+  app.canvas.addEventListener("pointerdown", (e) => {
+    if (lastGameOver) { e.stopImmediatePropagation(); start(true); }
+    else if (!started) { e.stopImmediatePropagation(); beginPlay(); }
+    else if (paused) { e.stopImmediatePropagation(); resumePlay(); }
+  });
   // canvas fits the remaining flex space automatically (CSS max-width/height keep aspect)
 
   // dev panel (mock activity sliders) is hidden from players; show with ?dev=1
@@ -142,19 +181,20 @@ async function boot() {
     $("app").style.height = "auto"; // let the page scroll to reach the dev panel
   }
 
-  app.ticker.add((t) => engine?.update(t.deltaMS)); // Pixi's own RAF loop
+  // Pixi's RAF loop; the engine only advances when a run is started and not paused
+  app.ticker.add((t) => { if (engine && started && !paused) engine.update(t.deltaMS); });
 
-  $("apply-btn").addEventListener("click", () => start());
-  $("restart-btn").addEventListener("click", () => start());
+  $("apply-btn").addEventListener("click", () => start(true));
+  $("restart-btn").addEventListener("click", () => start(true));
   gameSelect.addEventListener("change", () => {
     currentSpec = SPECS[gameSelect.value] ?? fruitRush;
-    start();
+    start(true);
   });
 
-  start();
+  start(false); // set up the flagship game in a "ready" state — press Start to play
 }
 
-function start() {
+function start(autostart = false) {
   // tear down previous run
   engine?.destroy();
   app.stage.removeChildren();
@@ -163,7 +203,8 @@ function start() {
   race.reset();
   lastGameOver = false;
   lastRaceMs = -1;
-  playAgainBtn.style.display = "none";
+  paused = false;
+  started = autostart;
   updatePostBtn();
 
   $("game-title").textContent = currentSpec.meta.title;
@@ -192,6 +233,9 @@ function start() {
 
   engine = createEngine(app, applied.effectiveSpec, applied.bonusLives, applied.scoreMultiplier, onState, hiveFeed);
   engine.mount();
+
+  setOverlay(autostart ? "none" : "start"); // show "▶ Start" over the ready scene
+  updatePauseBtn();
 }
 
 function onState(s: EngineState) {
@@ -199,7 +243,8 @@ function onState(s: EngineState) {
   if (s.over && !lastGameOver) {
     lastGameOver = true;
     lastScore = s.score;
-    playAgainBtn.style.display = "block";
+    setOverlay("playagain");
+    updatePauseBtn();
     updatePostBtn();
   }
 }

@@ -46,6 +46,8 @@
       .racer.you img { border-color: #8dff9e; box-shadow: 0 0 8px #8dff9e88; }
       .racer.you span { font-size: 8px; font-weight: 700; color: #8dff9e; margin-top: 1px; }
       button:disabled { opacity: .45; cursor: default; }
+      .ctrl-row { display: flex; gap: 8px; }
+      .ctrl-row button { padding: 6px 18px; font-size: 14px; }
       #toast { position: fixed; left: 50%; transform: translateX(-50%); top: 16px; background: #10261c; color: #8dff9e; border: 1px solid #2a5; padding: 9px 16px; border-radius: 10px; font-size: 13px; z-index: 50; opacity: 0; pointer-events: none; transition: opacity .3s; }
       #toast.show { opacity: 1; }
     </style>
@@ -69,6 +71,10 @@
           <label>Team <select id="community-select"></select></label>
           <button id="post-score" disabled>Post score</button>
         </span>
+      </div>
+      <div class="ctrl-row">
+        <button id="start-btn">▶ Start</button>
+        <button id="pause-btn" class="ghost" disabled>⏸ Pause</button>
       </div>
       <div id="stage-host">
         <button id="playagain">↻ Play again</button>
