@@ -8,6 +8,9 @@ import { applyHooks } from "./runtime/hooks.ts";
 import { createEngine, type ArchetypeEngine } from "./runtime/createEngine.ts";
 import type { EngineState } from "./runtime/FallingEngine.ts";
 import { HiveFeed } from "./hive/HiveFeed.ts";
+import { getGhosts, getCommunities } from "./hive/HiveSocial.ts";
+import { postScore } from "./hive/HiveAuth.ts";
+import { RaceStrip } from "./race/RaceStrip.ts";
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -44,6 +47,67 @@ function showFatal(msg: string) {
 }
 window.addEventListener("unhandledrejection", (e) => showFatal("Startup error: " + ((e.reason && e.reason.message) || e.reason)));
 window.addEventListener("error", (e) => showFatal("Startup error: " + e.message));
+
+// --- Hive social: ghost racers (#3) + community teams (#4) -------------------
+const hiveUser = $("hive-user") as HTMLInputElement;
+const communitySelect = $("community-select") as HTMLSelectElement;
+const postScoreBtn = $("post-score") as HTMLButtonElement;
+const hiveStatus = $("hive-status");
+const teamRow = $("team-row");
+const toast = $("toast");
+const race = new RaceStrip($("race-strip"), 300);
+
+let hiveAccount = "";
+let lastScore = 0;
+let lastGameOver = false;
+let lastRaceMs = -1;
+
+function showToast(msg: string) {
+  toast.textContent = msg;
+  toast.classList.add("show");
+  setTimeout(() => toast.classList.remove("show"), 2200);
+}
+function updatePostBtn() { postScoreBtn.disabled = !(lastGameOver && hiveAccount); }
+
+async function loadHive(user: string) {
+  if (!user) return;
+  hiveStatus.textContent = "loading…";
+  try {
+    const ghosts = await getGhosts(user, 6);
+    race.setGhosts(ghosts, (name) => showToast(`🏁 Passed @${name}!`));
+    race.setPlayerAvatar(user);
+    hiveAccount = user;
+    const comms = await getCommunities(user);
+    communitySelect.innerHTML = "";
+    for (const c of comms.slice(0, 20)) {
+      const o = document.createElement("option");
+      o.value = c.name; o.textContent = c.title;
+      communitySelect.appendChild(o);
+    }
+    teamRow.style.display = "flex";
+    hiveStatus.textContent = ghosts.length ? `@${user} · racing ${ghosts.length} rivals` : `@${user} · (no follows to race)`;
+    updatePostBtn();
+  } catch {
+    hiveStatus.textContent = "couldn't load @" + user;
+  }
+}
+
+const cleanName = (s: string) => s.trim().replace(/^@/, "").toLowerCase();
+$("hive-load").addEventListener("click", () => loadHive(cleanName(hiveUser.value)));
+hiveUser.addEventListener("keydown", (e) => { if (e.key === "Enter") loadHive(cleanName(hiveUser.value)); });
+postScoreBtn.addEventListener("click", async () => {
+  if (!hiveAccount) return;
+  postScoreBtn.disabled = true;
+  hiveStatus.textContent = "posting score…";
+  const r = await postScore(hiveAccount, communitySelect.value, lastScore, currentSpec.meta.title);
+  hiveStatus.textContent = r.ok ? "score posted on-chain ✓" : "post failed: " + (r.error ?? "");
+  showToast(r.ok ? "✓ Score posted to Hive" : "Post failed");
+  updatePostBtn();
+});
+{
+  const p = new URLSearchParams(location.search).get("hive");
+  if (p) { hiveUser.value = p; void loadHive(cleanName(p)); }
+}
 
 // --- Pixi app + game lifecycle ---------------------------------------------
 const app = new Application();
@@ -87,6 +151,12 @@ function start() {
   engine?.destroy();
   app.stage.removeChildren();
 
+  // reset the race for the new run
+  race.reset();
+  lastGameOver = false;
+  lastRaceMs = -1;
+  updatePostBtn();
+
   $("game-title").textContent = currentSpec.meta.title;
   $("archetype-label").textContent = currentSpec.meta.archetype;
   app.renderer.background.color = parseBg(currentSpec.world.palette?.[2]) ?? 0x101018;
@@ -112,8 +182,9 @@ function start() {
   engine.mount();
 }
 
-function onState(_s: EngineState) {
-  // hook for future: push score/lives to DOM, telemetry, etc.
+function onState(s: EngineState) {
+  if (s.over || s.elapsed - lastRaceMs >= 100) { race.update(s.score, s.elapsed); lastRaceMs = s.elapsed; }
+  if (s.over && !lastGameOver) { lastGameOver = true; lastScore = s.score; updatePostBtn(); }
 }
 
 void boot();
