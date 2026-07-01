@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Playforge — Stage 1 Prototype</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; height: 100%; background: #0b0b12; color: #e8e8f0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+      #app { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px; }
+      h1 { font-size: 18px; margin: 8px 0 0; font-weight: 600; letter-spacing: 0.3px; }
+      .sub { font-size: 12px; color: #8a8aa0; margin: 0; }
+      #stage-host { border-radius: 14px; overflow: hidden; box-shadow: 0 8px 40px #0008;
+        touch-action: none; }
+      #panel { width: 360px; max-width: 92vw; background: #15151f; border: 1px solid #262633;
+        border-radius: 12px; padding: 12px 14px; font-size: 13px; }
+      #panel h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #7a7a92;
+        margin: 0 0 8px; }
+      .row { display: flex; justify-content: space-between; padding: 3px 0; }
+      .row b { color: #fff; }
+      .muted { color: #8a8aa0; }
+      .controls { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+      label { font-size: 12px; color: #b6b6c8; display: flex; gap: 6px; align-items: center; }
+      input[type="range"] { accent-color: #5ad; }
+      button { background: #5ad; color: #04121a; border: 0; border-radius: 8px; padding: 7px 12px;
+        font-weight: 700; cursor: pointer; }
+      button.ghost { background: #23232f; color: #cfe; }
+      select { background: #23232f; color: #cfe; border: 1px solid #333; border-radius: 8px; padding: 6px 8px; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <h1 id="game-title">Playforge</h1>
+      <p class="sub">A Hive-powered arcade · <span id="archetype-label">runner</span> · live on-chain block feed ⛓</p>
+      <label style="font-size:13px;color:#b6b6c8;display:flex;gap:8px;align-items:center">Game
+        <select id="game-select">
+          <option value="runnerDash">Runner Dash — run across the chain 🏃</option>
+          <option value="fruitRush">Fruit Rush — catcher</option>
+          <option value="meteorDodge">Meteor Dodge — dodger</option>
+        </select>
+      </label>
+      <div id="stage-host"></div>
+      <div id="panel">
+        <h2>Hive energy (live)</h2>
+        <div class="row"><span class="muted">RC / mana baseline</span><b id="v-baseline">—</b></div>
+        <div class="row"><span class="muted">On-chain activity (24h ops)</span><b id="v-activity">—</b></div>
+        <div class="row"><span class="muted">Actifit steps bonus</span><b id="v-bonus">—</b></div>
+        <div class="row" style="border-top:1px solid #262633;margin-top:4px;padding-top:6px">
+          <span>Total energy <span class="muted">(cap 15)</span></span><b id="v-energy">—</b></div>
+        <h2 style="margin-top:12px">Effects in game</h2>
+        <div class="row"><span class="muted">→ Bonus lives</span><b id="v-bonuslives">—</b></div>
+        <div class="row"><span class="muted">→ Avatar boost (size / jump)</span><b id="v-basket">—</b></div>
+        <div class="row"><span class="muted">→ Score multiplier</span><b id="v-scoremult">—</b></div>
+        <h2 style="margin-top:12px">Hive chain (live) ⛓</h2>
+        <div class="row"><span class="muted">Head block</span><b id="v-block">connecting…</b></div>
+        <div class="row"><span class="muted">Last block</span><b id="v-ops">—</b></div>
+        <div class="controls" style="flex-direction:column;align-items:stretch;gap:10px">
+          <label style="justify-content:space-between">RC / mana %
+            <input id="mana-slider" type="range" min="0" max="100" step="5" value="70" />
+          </label>
+          <label style="justify-content:space-between">On-chain ops (24h)
+            <input id="ops-slider" type="range" min="0" max="60" step="1" value="15" />
+          </label>
+          <label style="justify-content:space-between">Actifit steps
+            <input id="steps-slider" type="range" min="0" max="15000" step="500" value="4000" />
+          </label>
+          <div style="display:flex;gap:8px">
+            <button id="apply-btn" class="ghost">Apply &amp; restart</button>
+            <button id="restart-btn">Restart</button>
+          </div>
+        </div>
+        <p class="sub" style="margin-top:10px">Move the basket with pointer / ← →. Catch fruit, dodge rocks.
+          The three sliders mock generic <b>on-chain Hive signals</b> — Actifit is just one optional feeder.</p>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
