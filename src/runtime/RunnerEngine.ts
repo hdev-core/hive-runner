@@ -36,8 +36,8 @@ export class RunnerEngine {
   private hud = new Container();
   private obstacles: Obstacle[] = [];
   private billboards: Billboard[] = [];
-  private billboardTimer = 2600;   // ms until the next post-billboard drifts in
-  private postCoinTimer = 5200;    // ms until the next collectible post-coin
+  private billboardTimer = 1200;   // ms until the next post-billboard drifts in
+  private postCoinTimer = 4200;    // ms until the next collectible post-coin
   private spawnTimers = new Map<string, number>();
   private scoreText!: Text;
   private livesText!: Text;
@@ -218,7 +218,7 @@ export class RunnerEngine {
     this.billboardTimer -= dt;
     if (this.billboardTimer <= 0) {
       this.spawnBillboard();
-      this.billboardTimer = 6500 + Math.random() * 4500; // 6.5–11s apart
+      this.billboardTimer = 4200 + Math.random() * 2600; // 4.2–6.8s apart (steadier variety)
     }
     this.postCoinTimer -= dt;
     if (this.postCoinTimer <= 0) {
@@ -242,8 +242,9 @@ export class RunnerEngine {
       .roundRect(-W / 2, boardTop, W, boardH, 8).stroke({ width: 2, color: 0x5a9bff, alpha: 0.7 });
     node.addChild(pole, board);
 
-    // author avatar (small) top-left of the board
-    const av = new Graphics();
+    // author avatar (small) top-left of the board — draw a placeholder disc first so the
+    // board looks intentional even before/if the profile image loads
+    const av = new Graphics().circle(0, 0, 14).fill(0x2a3350).circle(0, 0, 14).stroke({ width: 2, color: 0x5a9bff, alpha: 0.7 });
     av.position.set(-W / 2 + 22, boardTop + 22);
     node.addChild(av);
     attachAvatar(av, post.author, 14);

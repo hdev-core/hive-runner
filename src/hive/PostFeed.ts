@@ -37,6 +37,7 @@ export interface HivePost {
 export class PostFeed {
   private queue: HivePost[] = [];
   private idx = 0;
+  private lastAuthor = "";
   private account = "";
   private timer: number | null = null;
 
@@ -61,11 +62,17 @@ export class PostFeed {
   /** Are we currently showing a personalised feed vs. the global firehose? */
   get isPersonal() { return !!this.account; }
 
-  /** Round-robin the next post to display; null while the queue is still empty. */
+  /** Round-robin the next post to display; null while the queue is still empty.
+   *  Skips an immediate repeat of the same author so consecutive billboards clearly differ. */
   next(): HivePost | null {
     if (!this.queue.length) return null;
-    const p = this.queue[this.idx % this.queue.length];
+    let p = this.queue[this.idx % this.queue.length];
+    if (this.queue.length > 1 && p.author === this.lastAuthor) {
+      this.idx++;
+      p = this.queue[this.idx % this.queue.length];
+    }
     this.idx++;
+    this.lastAuthor = p.author;
     return p;
   }
 
@@ -82,7 +89,16 @@ export class PostFeed {
           title: clean(String(p.title)),
           community: p.community_title || p.category || undefined,
         }));
-      if (mapped.length) { this.queue = mapped; this.idx = 0; }
+      if (mapped.length) {
+        // Shuffle so the stream isn't always the same "created" order (whose top slots are
+        // recurring daily posts like Power-Up-Day). Keep `idx` advancing across refreshes —
+        // resetting it to 0 was making every run restart on the same first post.
+        for (let i = mapped.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [mapped[i], mapped[j]] = [mapped[j], mapped[i]];
+        }
+        this.queue = mapped;
+      }
     } catch {
       /* keep the previous queue on failure */
     }
