@@ -1,6 +1,7 @@
-// RaceStrip — a DOM overlay showing YOU racing the "ghosts" of Hive accounts you follow.
-// Each ghost advances at a pace derived from their real Hive activity; you advance by score.
-// First to the target wins. Uses <img> avatars (DOM images need no CORS, unlike WebGL).
+// RaceStrip — a clear DOM race showing YOU vs the "ghosts" of Hive accounts you follow.
+// Each ghost advances at a pace from their real Hive activity; you advance by score.
+// Uses <img> avatars (DOM images need no CORS, unlike WebGL). Ghosts are avatar-only
+// (names shown via the overtake toast) so the strip stays legible.
 
 import type { Ghost } from "../hive/HiveSocial.ts";
 
@@ -9,10 +10,11 @@ interface Racer {
   pace: number;      // pts/sec (0 for the player — position comes from score)
   isPlayer: boolean;
   chip: HTMLElement;
-  passed: boolean;   // player has overtaken this ghost
+  passed: boolean;
 }
 
 export class RaceStrip {
+  private caption: HTMLElement;
   private track: HTMLElement;
   private racers: Racer[] = [];
   private target: number;
@@ -22,10 +24,11 @@ export class RaceStrip {
     this.target = target;
     this.root.innerHTML = "";
     this.root.style.display = "none";
-    const track = document.createElement("div");
-    track.className = "race-track";
-    this.root.appendChild(track);
-    this.track = track;
+    this.caption = document.createElement("div");
+    this.caption.className = "race-caption";
+    this.track = document.createElement("div");
+    this.track.className = "race-track";
+    this.root.append(this.caption, this.track);
   }
 
   setGhosts(ghosts: Ghost[], onPass?: (name: string) => void) {
@@ -34,8 +37,9 @@ export class RaceStrip {
     this.racers = [];
     if (!ghosts.length) { this.root.style.display = "none"; return; }
     this.root.style.display = "block";
+    this.caption.textContent = "🏁 Racing your Hive friends — pass them!";
     this.addRacer("you", 0, true);
-    for (const g of ghosts) this.addRacer(g.name, g.pace, false);
+    ghosts.forEach((g) => this.addRacer(g.name, g.pace, false));
     this.layout(0, 0);
   }
 
@@ -43,26 +47,22 @@ export class RaceStrip {
     const chip = document.createElement("div");
     chip.className = "racer" + (isPlayer ? " you" : "");
     const img = document.createElement("img");
-    img.src = isPlayer
-      ? "https://images.hive.blog/u/null/avatar" // generic; overridden if logged in
-      : `https://images.hive.blog/u/${name}/avatar`;
-    img.alt = name;
-    const tag = document.createElement("span");
-    tag.textContent = isPlayer ? "you" : name;
-    chip.append(img, tag);
+    img.src = `https://images.hive.blog/u/${isPlayer ? "null" : name}/avatar`;
+    img.alt = name; img.title = isPlayer ? "you" : "@" + name;
+    chip.appendChild(img);
+    if (isPlayer) {
+      const tag = document.createElement("span");
+      tag.textContent = "YOU";
+      chip.appendChild(tag);
+    }
     this.track.appendChild(chip);
     this.racers.push({ name, pace, isPlayer, chip, passed: false });
   }
 
-  /** Set the player's avatar once we know who they are. */
   setPlayerAvatar(account: string) {
     const you = this.racers.find((r) => r.isPlayer);
-    if (you) {
-      const img = you.chip.querySelector("img");
-      if (img) img.src = `https://images.hive.blog/u/${account}/avatar`;
-      const tag = you.chip.querySelector("span");
-      if (tag) tag.textContent = account;
-    }
+    const img = you?.chip.querySelector("img");
+    if (img) img.src = `https://images.hive.blog/u/${account}/avatar`;
   }
 
   update(score: number, elapsedMs: number) {
@@ -80,16 +80,19 @@ export class RaceStrip {
   }
 
   private layout(score: number, elapsedMs: number) {
-    for (const r of this.racers) {
+    this.racers.forEach((r, i) => {
       const prog = r.isPlayer
         ? Math.min(1, score / this.target)
         : Math.min(1, (r.pace * (elapsedMs / 1000)) / this.target);
-      r.chip.style.left = `calc(${(prog * 100).toFixed(1)}% - 14px)`;
-    }
+      r.chip.style.left = `calc(${(prog * 100).toFixed(1)}% - 16px)`;
+      // two vertical lanes so bunched avatars don't fully overlap (player always front)
+      r.chip.style.top = r.isPlayer ? "3px" : `${3 + (i % 2) * 20}px`;
+      r.chip.style.zIndex = r.isPlayer ? "5" : "1";
+    });
   }
 
   reset() {
-    for (const r of this.racers) { r.passed = false; }
+    for (const r of this.racers) r.passed = false;
     this.layout(0, 0);
   }
 }

@@ -84,7 +84,7 @@ async function loadHive(user: string) {
       o.value = c.name; o.textContent = c.title;
       communitySelect.appendChild(o);
     }
-    teamRow.style.display = "flex";
+    teamRow.style.display = "inline-flex";
     hiveStatus.textContent = ghosts.length ? `@${user} · racing ${ghosts.length} rivals` : `@${user} · (no follows to race)`;
     updatePostBtn();
   } catch {
@@ -131,8 +131,10 @@ async function boot() {
   }
   host.textContent = "";
   host.appendChild(app.canvas);
-  app.canvas.style.width = "min(480px, 92vw)";
-  app.canvas.style.height = "auto";
+  // canvas fits the remaining flex space automatically (CSS max-width/height keep aspect)
+
+  // dev panel (mock activity sliders) is hidden from players; show with ?dev=1
+  if (new URLSearchParams(location.search).get("dev") === "1") $("panel").style.display = "block";
 
   app.ticker.add((t) => engine?.update(t.deltaMS)); // Pixi's own RAF loop
 
@@ -159,6 +161,9 @@ function start() {
 
   $("game-title").textContent = currentSpec.meta.title;
   $("archetype-label").textContent = currentSpec.meta.archetype;
+  $("hint").textContent = currentSpec.meta.archetype === "runner"
+    ? "Tap, Space or ↑ to jump — clear rocks, grab coins"
+    : "Move with pointer or ← → keys";
   app.renderer.background.color = parseBg(currentSpec.world.palette?.[2]) ?? 0x101018;
 
   const activity = makeActivity({
