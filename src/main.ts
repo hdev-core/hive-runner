@@ -119,7 +119,6 @@ let engine: ArchetypeEngine | null = null;
 // (works in dev, hangs in build). Boot is a fire-and-forget async function instead.
 async function boot() {
   try {
-    host.textContent = "starting renderer…";
     await app.init({
       width: currentSpec.world.width,
       height: currentSpec.world.height,
@@ -131,8 +130,10 @@ async function boot() {
     showFatal("Renderer failed to start: " + ((err as Error)?.message ?? String(err)));
     return;
   }
-  host.textContent = "";
   host.appendChild(app.canvas);
+  host.appendChild(playAgainBtn); // keep the button in the host, layered above the canvas
+  // tap/click the game once it's over to restart (mobile-friendly backup to the button)
+  app.canvas.addEventListener("pointerdown", () => { if (lastGameOver) start(); });
   // canvas fits the remaining flex space automatically (CSS max-width/height keep aspect)
 
   // dev panel (mock activity sliders) is hidden from players; show with ?dev=1
