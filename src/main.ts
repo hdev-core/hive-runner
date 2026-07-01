@@ -52,6 +52,7 @@ window.addEventListener("error", (e) => showFatal("Startup error: " + e.message)
 const hiveUser = $("hive-user") as HTMLInputElement;
 const communitySelect = $("community-select") as HTMLSelectElement;
 const postScoreBtn = $("post-score") as HTMLButtonElement;
+const playAgainBtn = $("playagain") as HTMLButtonElement;
 const hiveStatus = $("hive-status");
 const teamRow = $("team-row");
 const toast = $("toast");
@@ -104,6 +105,7 @@ postScoreBtn.addEventListener("click", async () => {
   showToast(r.ok ? "✓ Score posted to Hive" : "Post failed");
   updatePostBtn();
 });
+playAgainBtn.addEventListener("click", () => start());
 {
   const p = new URLSearchParams(location.search).get("hive");
   if (p) { hiveUser.value = p; void loadHive(cleanName(p)); }
@@ -134,7 +136,10 @@ async function boot() {
   // canvas fits the remaining flex space automatically (CSS max-width/height keep aspect)
 
   // dev panel (mock activity sliders) is hidden from players; show with ?dev=1
-  if (new URLSearchParams(location.search).get("dev") === "1") $("panel").style.display = "block";
+  if (new URLSearchParams(location.search).get("dev") === "1") {
+    $("panel").style.display = "block";
+    $("app").style.height = "auto"; // let the page scroll to reach the dev panel
+  }
 
   app.ticker.add((t) => engine?.update(t.deltaMS)); // Pixi's own RAF loop
 
@@ -157,6 +162,7 @@ function start() {
   race.reset();
   lastGameOver = false;
   lastRaceMs = -1;
+  playAgainBtn.style.display = "none";
   updatePostBtn();
 
   $("game-title").textContent = currentSpec.meta.title;
@@ -189,7 +195,12 @@ function start() {
 
 function onState(s: EngineState) {
   if (s.over || s.elapsed - lastRaceMs >= 100) { race.update(s.score, s.elapsed); lastRaceMs = s.elapsed; }
-  if (s.over && !lastGameOver) { lastGameOver = true; lastScore = s.score; updatePostBtn(); }
+  if (s.over && !lastGameOver) {
+    lastGameOver = true;
+    lastScore = s.score;
+    playAgainBtn.style.display = "block";
+    updatePostBtn();
+  }
 }
 
 void boot();
