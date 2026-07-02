@@ -9,7 +9,7 @@ import type { GameSpec, EntityDef } from "../types/spec.ts";
 import type { EngineState } from "./engineState.ts";
 import { Background } from "./Background.ts";
 import { attachAvatar } from "./avatar.ts";
-import { drawHiveMark } from "./hiveLogo.ts";
+import { makeHiveLogo } from "./hiveLogo.ts";
 import type { HiveFeed, BlockInfo } from "../hive/HiveFeed.ts";
 import type { PostFeed, HivePost } from "../hive/PostFeed.ts";
 
@@ -124,6 +124,10 @@ export class RunnerEngine {
 
     this.drawRunner();
     this.avatar.position.set(this.charX, this.charY);
+    // Hive logo emblem on the chest — a persistent child so it survives the per-frame redraw
+    const emblem = makeHiveLogo(this.sx * 0.28);
+    emblem.position.set(this.sx * 0.02, this.sx * 0.04);
+    this.avatar.addChild(emblem);
 
     const style = { fill: 0xffffff, fontSize: 18, fontFamily: "system-ui", fontWeight: "700" } as const;
     this.scoreText = new Text({ text: "0", style });
@@ -138,15 +142,15 @@ export class RunnerEngine {
     this.blockText.position.set(12, 34);
     this.hud.addChild(this.scoreText, this.levelText, this.livesText, this.blockText);
 
-    // faint "HIVE" brand watermark (logo mark + wordmark), bottom-right of the play field
+    // faint "HIVE" brand watermark (official logo + wordmark), top-right of the play field
     const wm = new Container();
-    const wmMark = new Graphics();
-    drawHiveMark(wmMark, 9, 9, 9);
+    const wmMark = makeHiveLogo(22);
+    wmMark.position.set(11, 8);
     const wmText = new Text({ text: "HIVE", style: { fontFamily: "system-ui", fontSize: 12, fontWeight: "800", fill: 0xffffff } });
-    wmText.position.set(22, 2);
+    wmText.position.set(26, 1);
     wm.addChild(wmMark, wmText);
     wm.alpha = 0.42;
-    wm.position.set(spec.world.width - 82, 44); // top-right, clear of gameplay
+    wm.position.set(spec.world.width - 92, 42); // top-right, clear of gameplay
     this.hud.addChild(wm);
 
     for (const e of this.spawnables()) this.spawnTimers.set(e.id, this.spawnIntervalMs(e));
@@ -295,7 +299,7 @@ export class RunnerEngine {
       const b = this.billboards[i];
       // keep billboards in step with the current world speed (they may outlive a level ramp)
       b.node.position.x += -this.currentScrollSpeed() * f;
-      if (b.node.position.x + b.w < -20) { b.node.destroy(); this.billboards.splice(i, 1); }
+      if (b.node.position.x + b.w < -20) { b.node.destroy({ children: true }); this.billboards.splice(i, 1); }
     }
   }
 
@@ -428,7 +432,7 @@ export class RunnerEngine {
     const w = isPickup ? 28 : 34;
     const h = isPickup ? 28 : 42;
     const gfx = new Graphics();
-    if (isPickup) drawCoin(gfx, w / 2);
+    if (isPickup) { drawCoin(gfx, w / 2); gfx.addChild(makeHiveLogo(w * 0.62)); }
     else drawBlock(gfx, w, h);
     // hazards sit on the ground; pickups float at jump height
     const y = isPickup ? this.groundY - 118 : this.groundY - h / 2;
@@ -469,7 +473,7 @@ export class RunnerEngine {
     this.syncHud();
   }
 
-  private removeObstacle(i: number) { this.obstacles[i].gfx.destroy(); this.obstacles.splice(i, 1); }
+  private removeObstacle(i: number) { this.obstacles[i].gfx.destroy({ children: true }); this.obstacles.splice(i, 1); }
 
   private gameOver() {
     this.state.over = true;
@@ -544,10 +548,8 @@ export class RunnerEngine {
     // torso (jacket) with a Hive-red sash + hexagon emblem
     g.roundRect(ox + W * 0.26, oy + H * 0.32, W * 0.50, H * 0.42, 6).fill(NAVY).stroke({ width: 2, color: OUT, alpha: 0.7 });
     g.roundRect(ox + W * 0.30, oy + H * 0.34, W * 0.10, H * 0.38, 3).fill(HIVE_RED);
-    // Hive logo emblem on a small white badge
-    const ey = oy + H * 0.50;
-    g.roundRect(ox + W * 0.34, ey - W * 0.13, W * 0.34, W * 0.26, 2).fill(0xffffff);
-    drawHiveMark(g, ox + W * 0.53, ey, W * 0.10);
+    // white badge for the Hive logo emblem (the logo itself is a persistent child; see mount)
+    g.roundRect(ox + W * 0.36, oy + H * 0.44, W * 0.32, W * 0.24, 2).fill(0xffffff);
 
     // forward arm (swings with the run)
     const armY = airborne ? H * 0.36 : (this.runPhase === 0 ? H * 0.40 : H * 0.46);
@@ -671,9 +673,8 @@ function drawBlock(g: Graphics, w: number, h: number) {
   g.poly(hexPts(0, 2, 8)).stroke({ width: 1.5, color: 0x6fd3ff, alpha: 0.75 });                    // hex glyph
 }
 
-// A pickup drawn as a glossy gold coin stamped with the Hive logo.
+// A pickup drawn as a glossy gold coin; the Hive logo is added as a child (see spawnObstacle).
 function drawCoin(g: Graphics, r: number) {
   g.circle(0, 0, r).fill(0xffcf3f).stroke({ width: 2, color: 0x8a5a10, alpha: 0.9 });
   g.circle(-r * 0.32, -r * 0.32, r * 0.5).fill({ color: 0xffffff, alpha: 0.28 }); // gloss
-  drawHiveMark(g, 0, 0, r * 0.6);
 }

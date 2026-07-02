@@ -1,24 +1,33 @@
-// The Hive logo mark, drawn from primitives to match the real brand: a solid diamond
-// (rhombus) on the left followed by two bold chevrons pointing right ( ◆ » ). Used for
-// the character emblem, the HUD watermark, and the drifting background hints.
+// The official Hive logo, rendered from its real brand SVG (from cryptologos.cc /
+// seeklogo — viewBox 0 0 220 190). The source fill is swapped to white so each instance
+// can be tinted to any colour (Graphics tint multiplies white → exact colour) and scaled
+// freely. makeHiveLogo() returns a fresh Graphics that shares one parsed context (cheap).
 
-import { Graphics } from "pixi.js";
+import { Graphics, GraphicsContext } from "pixi.js";
 
 export const HIVE_RED = 0xe31337;
 
-export function drawHiveMark(g: Graphics, cx: number, cy: number, r: number, color = HIVE_RED, alpha = 1) {
-  const hh = r * 0.66;   // half height of each element
-  const t = r * 0.4;     // chevron stroke thickness (bold)
-  const x = cx - r * 0.15; // nudge so the group looks visually centered on cx
+// exact official paths; fill forced to white for tint-based recolouring
+const HIVE_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 190">' +
+  '<path fill="#ffffff" d="M157.27,107.26a1,1,0,0,1,.82,1.42l-46.75,80.85a1,1,0,0,1-.82.47H81.94a.94.94,0,0,1-.81-1.42l46.75-80.85a.94.94,0,0,1,.81-.47ZM129.48,84.09a1,1,0,0,1-.82-.47L81.13,1.42A.94.94,0,0,1,81.94,0h28.58a1,1,0,0,1,.82.47l47.53,82.2a.94.94,0,0,1-.81,1.42Z"/>' +
+  '<path fill="#ffffff" d="M135.13,1.42A.94.94,0,0,1,136,0h28.62a.93.93,0,0,1,.81.47l54.49,94.06a.93.93,0,0,1,0,.94l-54.49,94.06a.93.93,0,0,1-.81.47H136a.94.94,0,0,1-.82-1.42L189.34,95Zm-23.26,93.1a1,1,0,0,1,0,1L57.13,189.53a1,1,0,0,1-1.65,0L.13,95.48a1,1,0,0,1,0-1L54.87.47a1,1,0,0,1,1.65,0Z"/>' +
+  "</svg>";
 
-  // diamond (left element)
-  const dcx = x - r * 0.7, dw = r * 0.42;
-  g.poly([dcx, cy - hh, dcx + dw, cy, dcx, cy + hh, dcx - dw, cy]).fill({ color, alpha });
+const VB_W = 220, VB_H = 190; // viewBox — logo fills it, centre ≈ (110, 95)
 
-  // two chevrons pointing right ( » )
-  const chevron = (x0: number) =>
-    g.moveTo(x0, cy - hh).lineTo(x0 + r * 0.5, cy).lineTo(x0, cy + hh)
-      .stroke({ width: t, color, alpha, cap: "butt", join: "miter", miterLimit: 6 });
-  chevron(x - r * 0.12);
-  chevron(x + r * 0.5);
+let sharedCtx: GraphicsContext | null = null;
+function ctx(): GraphicsContext {
+  if (!sharedCtx || (sharedCtx as any).destroyed) sharedCtx = new Graphics().svg(HIVE_SVG).context;
+  return sharedCtx;
+}
+
+/** A Hive logo Graphics, `width` px wide, tinted `color`, centred on its own origin. */
+export function makeHiveLogo(width: number, color: number = HIVE_RED, alpha = 1): Graphics {
+  const g = new Graphics(ctx());
+  g.pivot.set(VB_W / 2, VB_H / 2);
+  g.scale.set(width / VB_W);
+  g.tint = color;
+  g.alpha = alpha;
+  return g;
 }

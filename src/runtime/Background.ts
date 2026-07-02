@@ -7,11 +7,9 @@
 
 import { Container, Graphics } from "pixi.js";
 import type { GameSpec } from "../types/spec.ts";
-import { drawHiveMark } from "./hiveLogo.ts";
+import { makeHiveLogo, HIVE_RED } from "./hiveLogo.ts";
 
 interface Layer { node: Container; factor: number; span: number; axis: "x" | "y"; }
-
-const HIVE_RED = 0xe31337;
 
 export class Background {
   container = new Container();
@@ -87,20 +85,19 @@ export class Background {
     this.container.addChild(g);
   }
 
-  // Drifting Hive logo marks, far and faint — a quiet "on-chain honeycomb" motif.
+  // Drifting official Hive logos, far and faint — a quiet "on-chain" motif.
   private addHexField() {
     const node = new Container();
-    const g = new Graphics();
     for (let copy = 0; copy < 2; copy++) {
       for (let i = 0; i < 9; i++) {
         const cx = Math.random() * this.w + copy * this.w;
         const cy = 36 + Math.random() * this.h * 0.5;
-        const r = 11 + Math.random() * 22;
-        // faint drifting Hive logos, alternating red / cool-blue tint
-        drawHiveMark(g, cx, cy, r, i % 3 === 0 ? HIVE_RED : 0x6fa0ff, 0.14);
+        const w = 26 + Math.random() * 42;
+        const logo = makeHiveLogo(w, i % 3 === 0 ? HIVE_RED : 0x6fa0ff, 0.15);
+        logo.position.set(cx, cy);
+        node.addChild(logo);
       }
     }
-    node.addChild(g);
     this.container.addChild(node);
     this.layers.push({ node, factor: 0.1, span: this.w, axis: "x" });
   }
