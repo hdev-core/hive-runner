@@ -124,9 +124,10 @@ export class RunnerEngine {
 
     this.drawRunner();
     this.avatar.position.set(this.charX, this.charY);
-    // Hive logo emblem on the chest — a persistent child so it survives the per-frame redraw
-    const emblem = makeHiveLogo(this.sx * 0.28);
-    emblem.position.set(this.sx * 0.02, this.sx * 0.04);
+    // Hive logo on the courier parcel — a persistent child (survives the per-frame redraw),
+    // positioned over the visible (left) face of the back parcel.
+    const emblem = makeHiveLogo(this.sx * 0.2);
+    emblem.position.set(this.sx * -0.34, this.sy * -0.055);
     this.avatar.addChild(emblem);
 
     const style = { fill: 0xffffff, fontSize: 18, fontFamily: "system-ui", fontWeight: "700" } as const;
@@ -522,19 +523,21 @@ export class RunnerEngine {
     }
   }
 
-  // The "Hive courier": a crisp, outlined runner with a fluttering Hive-red cape, a hex
-  // chest emblem and a cyan visor. Legs alternate while running, tuck while airborne.
+  // The "Hive courier": a crisp, outlined runner carrying a Hive-branded parcel on their
+  // back (a block being delivered across the chain). Legs alternate while running.
   private drawRunner() {
     const g = this.avatar;
     g.clear();
     const W = this.sx, H = this.sy, ox = -W / 2, oy = -H / 2;
-    const NAVY = 0x2a3255, SKIN = 0xf1cba2, VISOR = 0x74e0ff, OUT = 0x0b0e1c;
+    const NAVY = 0x2a3255, SKIN = 0xf1cba2, VISOR = 0x74e0ff, OUT = 0x0b0e1c, KRAFT = 0xcaa46a;
     const airborne = !this.grounded;
-    const fl = Math.sin(this.state.elapsed / 90) * (W * 0.10); // cape flutter
+    const bob = Math.sin(this.state.elapsed / 90) * (H * 0.01); // subtle parcel bob
 
-    // cape (behind the body), trailing left with a darker inner fold
-    g.poly([ox + W * 0.40, oy + H * 0.30, ox - W * 0.10 - fl * 0.5, oy + H * 0.28, ox - W * 0.30 - fl, oy + H * 0.52, ox - W * 0.12 - fl * 0.4, oy + H * 0.74, ox + W * 0.44, oy + H * 0.64]).fill(HIVE_RED);
-    g.poly([ox + W * 0.40, oy + H * 0.30, ox - W * 0.06 - fl * 0.5, oy + H * 0.33, ox - W * 0.16 - fl * 0.7, oy + H * 0.52, ox + W * 0.42, oy + H * 0.50]).fill({ color: 0x9c0c26, alpha: 0.55 });
+    // courier parcel on the back (drawn behind the torso) — the Hive logo sits on it (mount child)
+    const px = ox + W * 0.02, py = oy + H * 0.24 + bob, pw = W * 0.36, ph = H * 0.36;
+    g.roundRect(px, py, pw, ph, 3).fill(KRAFT).stroke({ width: 2, color: OUT, alpha: 0.75 });
+    g.rect(px, py + ph * 0.44, pw, 2.5).fill({ color: 0x8a6a3a, alpha: 0.85 });         // twine (h)
+    g.rect(px + pw * 0.5 - 1, py, 2.5, ph).fill({ color: 0x8a6a3a, alpha: 0.85 });        // twine (v)
 
     // legs + Hive-red shoes
     const leg = (x: number, yTop: number, len: number) => {
@@ -545,11 +548,11 @@ export class RunnerEngine {
     else if (this.runPhase === 0) { leg(ox + W * 0.22, H * 0.66, H * 0.28); leg(ox + W * 0.56, H * 0.70, H * 0.22); }
     else { leg(ox + W * 0.30, H * 0.70, H * 0.22); leg(ox + W * 0.50, H * 0.66, H * 0.28); }
 
-    // torso (jacket) with a Hive-red sash + hexagon emblem
+    // torso (jacket) with a Hive-red sash
     g.roundRect(ox + W * 0.26, oy + H * 0.32, W * 0.50, H * 0.42, 6).fill(NAVY).stroke({ width: 2, color: OUT, alpha: 0.7 });
-    g.roundRect(ox + W * 0.30, oy + H * 0.34, W * 0.10, H * 0.38, 3).fill(HIVE_RED);
-    // white badge for the Hive logo emblem (the logo itself is a persistent child; see mount)
-    g.roundRect(ox + W * 0.36, oy + H * 0.44, W * 0.32, W * 0.24, 2).fill(0xffffff);
+    g.roundRect(ox + W * 0.42, oy + H * 0.34, W * 0.10, H * 0.38, 3).fill(HIVE_RED);
+    // shoulder strap holding the parcel, crossing the chest
+    g.moveTo(ox + W * 0.34, oy + H * 0.34).lineTo(ox + W * 0.66, oy + H * 0.66).stroke({ width: W * 0.08, color: 0x171b30, cap: "round" });
 
     // forward arm (swings with the run)
     const armY = airborne ? H * 0.36 : (this.runPhase === 0 ? H * 0.40 : H * 0.46);
