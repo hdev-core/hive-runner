@@ -88,7 +88,7 @@ export class RunnerEngine {
     onState?: (s: EngineState) => void,
     private hiveFeed?: HiveFeed,
     private postFeed?: PostFeed,
-    private onToast?: (msg: string) => void,
+    private onPost?: (post: HivePost) => void, // fired when a post-coin is collected
   ) {
     this.onState = onState;
     const avatarDef = spec.entities.find((e) => e.role === "avatar");
@@ -492,7 +492,7 @@ export class RunnerEngine {
       this.state.score = Math.floor(this.scoreExact);
       this.flash(0x6cff8a);
       if (o.special) this.floatPoints(o.gfx.position.x, o.gfx.position.y, `+${gained}`);
-      if (o.post) this.onToast?.(`📝 @${o.post.author}: ${o.post.title}`);
+      if (o.post) this.onPost?.(o.post);
     } else {
       this.state.lives -= 1;
       this.flash(0xff5a5a);

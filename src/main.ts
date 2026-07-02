@@ -8,7 +8,7 @@ import { applyHooks } from "./runtime/hooks.ts";
 import { createEngine, type ArchetypeEngine } from "./runtime/createEngine.ts";
 import type { EngineState } from "./runtime/FallingEngine.ts";
 import { HiveFeed } from "./hive/HiveFeed.ts";
-import { PostFeed } from "./hive/PostFeed.ts";
+import { PostFeed, type HivePost } from "./hive/PostFeed.ts";
 import { getGhosts, getCommunities } from "./hive/HiveSocial.ts";
 import { postScore } from "./hive/HiveAuth.ts";
 import { RaceStrip } from "./race/RaceStrip.ts";
@@ -138,6 +138,26 @@ function showToast(msg: string) {
   toast.classList.add("show");
   setTimeout(() => toast.classList.remove("show"), 2200);
 }
+
+// Post-coin pickup → a distinct, clickable "you discovered a Hive post" toast.
+// Clicking opens the real post on peakd in a new tab (content-discovery while you run).
+const postToast = $("post-toast") as HTMLAnchorElement;
+let postToastTimer: number | undefined;
+function showPostToast(post: HivePost) {
+  postToast.href = post.permlink
+    ? `https://peakd.com/@${post.author}/${post.permlink}`
+    : `https://peakd.com/@${post.author}`;
+  postToast.innerHTML =
+    `<img src="https://images.hive.blog/u/${post.author}/avatar" alt="" />` +
+    `<span class="pt-txt">📝 <span class="pt-name">@${post.author}</span> · ${escapeHtml(post.title)}</span>` +
+    `<span class="pt-go">open ↗</span>`;
+  postToast.classList.add("show");
+  clearTimeout(postToastTimer);
+  postToastTimer = window.setTimeout(() => postToast.classList.remove("show"), 4000);
+}
+function escapeHtml(s: string) {
+  return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
+}
 function updatePostBtn() { postScoreBtn.disabled = !(lastGameOver && hiveAccount); }
 
 function setOverlay(mode: "start" | "resume" | "playagain" | "none") {
@@ -265,7 +285,9 @@ async function boot() {
   });
 
   start(false); // set up the flagship game in a "ready" state — press Start to play
-  if (new URLSearchParams(location.search).get("play") === "1") beginPlay(); // dev: skip the Start overlay
+  const qp = new URLSearchParams(location.search);
+  if (qp.get("play") === "1") beginPlay(); // dev: skip the Start overlay
+  if (qp.get("pt") === "1") showPostToast({ author: "yalloveme", permlink: "sample", title: "NOT EVERY CROWN BELONGS TO A KING", community: "Hive" }); // dev: preview the post toast
 }
 
 function start(autostart = false) {
@@ -305,7 +327,7 @@ function start(autostart = false) {
   vBasket.textContent = `×${applied.basketWidthFactor}`;
   vScoreMult.textContent = `×${applied.scoreMultiplier}`;
 
-  engine = createEngine(app, applied.effectiveSpec, applied.bonusLives, applied.scoreMultiplier, onState, hiveFeed, postFeed, showToast);
+  engine = createEngine(app, applied.effectiveSpec, applied.bonusLives, applied.scoreMultiplier, onState, hiveFeed, postFeed, showPostToast);
   engine.mount();
 
   setOverlay(autostart ? "none" : "start"); // show "▶ Start" over the ready scene

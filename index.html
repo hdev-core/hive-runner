@@ -50,6 +50,16 @@
       .ctrl-row button { padding: 6px 18px; font-size: 14px; }
       #toast { position: fixed; left: 50%; transform: translateX(-50%); top: 16px; background: #10261c; color: #8dff9e; border: 1px solid #2a5; padding: 9px 16px; border-radius: 10px; font-size: 13px; z-index: 50; opacity: 0; pointer-events: none; transition: opacity .3s; }
       #toast.show { opacity: 1; }
+      /* post-coin pickup: a clickable "you found a Hive post" toast (purple, matches the post-coins) */
+      #post-toast { position: fixed; left: 50%; transform: translateX(-50%); top: 54px; display: none; align-items: center; gap: 9px;
+        width: min(430px, 92vw); box-sizing: border-box; background: #1b1030; color: #f2e9ff; border: 1px solid #c86bff;
+        padding: 7px 12px 7px 8px; border-radius: 999px; font-size: 13px; z-index: 55; text-decoration: none;
+        box-shadow: 0 6px 22px #0009; opacity: 0; transition: opacity .25s; }
+      #post-toast.show { display: flex; opacity: 1; }
+      #post-toast img { width: 28px; height: 28px; border-radius: 50%; background: #322; object-fit: cover; flex: none; border: 1px solid #c86bff88; }
+      #post-toast .pt-txt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #post-toast .pt-name { font-weight: 800; color: #d9b6ff; }
+      #post-toast .pt-go { flex: none; font-weight: 800; color: #b98cff; font-size: 12px; }
       /* weekly contest — collapsible so it never eats the game's viewport space */
       #contest { width: min(460px, 94vw); background: #14141f; border: 1px solid #262633; border-radius: 10px; font-size: 12px; }
       .contest-head { display: flex; align-items: center; gap: 8px; padding: 7px 10px; cursor: pointer; user-select: none; }
@@ -150,6 +160,7 @@
       </div>
     </div>
     <div id="toast"></div>
+    <a id="post-toast" target="_blank" rel="noopener noreferrer"></a>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

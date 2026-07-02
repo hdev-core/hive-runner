@@ -7,7 +7,7 @@ import type { GameSpec } from "../types/spec.ts";
 import { FallingEngine, type EngineState } from "./FallingEngine.ts";
 import { RunnerEngine } from "./RunnerEngine.ts";
 import type { HiveFeed } from "../hive/HiveFeed.ts";
-import type { PostFeed } from "../hive/PostFeed.ts";
+import type { PostFeed, HivePost } from "../hive/PostFeed.ts";
 
 export interface ArchetypeEngine {
   mount(): void;
@@ -23,14 +23,14 @@ export function createEngine(
   onState?: (s: EngineState) => void,
   hiveFeed?: HiveFeed,
   postFeed?: PostFeed,
-  onToast?: (msg: string) => void,
+  onPost?: (post: HivePost) => void,
 ): ArchetypeEngine {
   switch (spec.meta.archetype) {
     case "catcher":
     case "dodger":
       return new FallingEngine(app, spec, bonusLives, scoreMultiplier, onState, hiveFeed);
     case "runner":
-      return new RunnerEngine(app, spec, bonusLives, scoreMultiplier, onState, hiveFeed, postFeed, onToast);
+      return new RunnerEngine(app, spec, bonusLives, scoreMultiplier, onState, hiveFeed, postFeed, onPost);
     default:
       throw new Error(`archetype "${spec.meta.archetype}" not implemented yet`);
   }
