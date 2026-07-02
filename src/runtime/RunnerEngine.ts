@@ -9,6 +9,7 @@ import type { GameSpec, EntityDef } from "../types/spec.ts";
 import type { EngineState } from "./engineState.ts";
 import { Background } from "./Background.ts";
 import { attachAvatar } from "./avatar.ts";
+import { drawHiveMark } from "./hiveLogo.ts";
 import type { HiveFeed, BlockInfo } from "../hive/HiveFeed.ts";
 import type { PostFeed, HivePost } from "../hive/PostFeed.ts";
 
@@ -136,6 +137,17 @@ export class RunnerEngine {
     this.blockText = new Text({ text: "⛓ connecting…", style: { ...style, fontSize: 12, fill: 0x9fd3ff } });
     this.blockText.position.set(12, 34);
     this.hud.addChild(this.scoreText, this.levelText, this.livesText, this.blockText);
+
+    // faint "HIVE" brand watermark (logo mark + wordmark), bottom-right of the play field
+    const wm = new Container();
+    const wmMark = new Graphics();
+    drawHiveMark(wmMark, 9, 9, 9);
+    const wmText = new Text({ text: "HIVE", style: { fontFamily: "system-ui", fontSize: 12, fontWeight: "800", fill: 0xffffff } });
+    wmText.position.set(22, 2);
+    wm.addChild(wmMark, wmText);
+    wm.alpha = 0.42;
+    wm.position.set(spec.world.width - 82, 44); // top-right, clear of gameplay
+    this.hud.addChild(wm);
 
     for (const e of this.spawnables()) this.spawnTimers.set(e.id, this.spawnIntervalMs(e));
     this.syncHud();
@@ -532,8 +544,9 @@ export class RunnerEngine {
     // torso (jacket) with a Hive-red sash + hexagon emblem
     g.roundRect(ox + W * 0.26, oy + H * 0.32, W * 0.50, H * 0.42, 6).fill(NAVY).stroke({ width: 2, color: OUT, alpha: 0.7 });
     g.roundRect(ox + W * 0.30, oy + H * 0.34, W * 0.10, H * 0.38, 3).fill(HIVE_RED);
-    g.poly(hexPts(W * 0.10, oy + H * 0.50, W * 0.11)).fill(0xffffff).stroke({ width: 1.5, color: HIVE_RED });
-    g.poly(hexPts(W * 0.10, oy + H * 0.50, W * 0.055)).fill(HIVE_RED);
+    // Hive logo emblem on a white badge
+    g.poly(hexPts(W * 0.11, oy + H * 0.50, W * 0.13)).fill(0xffffff);
+    drawHiveMark(g, W * 0.11, oy + H * 0.50, W * 0.095);
 
     // forward arm (swings with the run)
     const armY = airborne ? H * 0.36 : (this.runPhase === 0 ? H * 0.40 : H * 0.46);

@@ -7,6 +7,7 @@
 
 import { Container, Graphics } from "pixi.js";
 import type { GameSpec } from "../types/spec.ts";
+import { drawHiveMark, strokeHiveMark } from "./hiveLogo.ts";
 
 interface Layer { node: Container; factor: number; span: number; axis: "x" | "y"; }
 
@@ -86,7 +87,7 @@ export class Background {
     this.container.addChild(g);
   }
 
-  // Drifting Hive hexagons, far and faint — a quiet "blockchain honeycomb" motif.
+  // Drifting Hive logo marks, far and faint — a quiet "on-chain honeycomb" motif.
   private addHexField() {
     const node = new Container();
     const g = new Graphics();
@@ -95,8 +96,8 @@ export class Background {
         const cx = Math.random() * this.w + copy * this.w;
         const cy = 36 + Math.random() * this.h * 0.5;
         const r = 10 + Math.random() * 24;
-        hexPath(g, cx, cy, r);
-        g.stroke({ width: 2, color: i % 3 === 0 ? HIVE_RED : 0x6fa0ff, alpha: 0.14 });
+        if (i % 3 === 0) drawHiveMark(g, cx, cy, r, HIVE_RED, 0.1);         // faint filled Hive logos
+        else strokeHiveMark(g, cx, cy, r, 0x6fa0ff, 0.14, 2);              // honeycomb outlines
       }
     }
     node.addChild(g);
@@ -165,16 +166,6 @@ function skyColors(theme: string): [number, number, number] {
     return [0x0b0e2a, 0x2a1746, 0x5a2440]; // indigo -> violet -> deep Hive-red horizon
   if (theme.includes("orchard")) return [0x74c4ff, 0xa8dcf0, 0xcdeaa4];
   return [0x141433, 0x20204a, 0x2a2a4a];
-}
-
-// hexagon path (pointy-top), used for the Hive honeycomb motif
-function hexPath(g: Graphics, cx: number, cy: number, r: number) {
-  const pts: number[] = [];
-  for (let i = 0; i < 6; i++) {
-    const a = (Math.PI / 180) * (60 * i - 90);
-    pts.push(cx + r * Math.cos(a), cy + r * Math.sin(a));
-  }
-  g.poly(pts);
 }
 
 // smooth 3-stop vertical gradient (top -> mid at 55% -> bottom)
