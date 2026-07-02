@@ -7,7 +7,7 @@
 
 import { Container, Graphics } from "pixi.js";
 import type { GameSpec } from "../types/spec.ts";
-import { drawHiveMark, strokeHiveMark } from "./hiveLogo.ts";
+import { drawHiveMark } from "./hiveLogo.ts";
 
 interface Layer { node: Container; factor: number; span: number; axis: "x" | "y"; }
 
@@ -95,9 +95,9 @@ export class Background {
       for (let i = 0; i < 9; i++) {
         const cx = Math.random() * this.w + copy * this.w;
         const cy = 36 + Math.random() * this.h * 0.5;
-        const r = 10 + Math.random() * 24;
-        if (i % 3 === 0) drawHiveMark(g, cx, cy, r, HIVE_RED, 0.1);         // faint filled Hive logos
-        else strokeHiveMark(g, cx, cy, r, 0x6fa0ff, 0.14, 2);              // honeycomb outlines
+        const r = 11 + Math.random() * 22;
+        // faint drifting Hive logos, alternating red / cool-blue tint
+        drawHiveMark(g, cx, cy, r, i % 3 === 0 ? HIVE_RED : 0x6fa0ff, 0.14);
       }
     }
     node.addChild(g);

@@ -544,9 +544,10 @@ export class RunnerEngine {
     // torso (jacket) with a Hive-red sash + hexagon emblem
     g.roundRect(ox + W * 0.26, oy + H * 0.32, W * 0.50, H * 0.42, 6).fill(NAVY).stroke({ width: 2, color: OUT, alpha: 0.7 });
     g.roundRect(ox + W * 0.30, oy + H * 0.34, W * 0.10, H * 0.38, 3).fill(HIVE_RED);
-    // Hive logo emblem on a white badge
-    g.poly(hexPts(W * 0.11, oy + H * 0.50, W * 0.13)).fill(0xffffff);
-    drawHiveMark(g, W * 0.11, oy + H * 0.50, W * 0.095);
+    // Hive logo emblem on a small white badge
+    const ey = oy + H * 0.50;
+    g.roundRect(ox + W * 0.34, ey - W * 0.13, W * 0.34, W * 0.26, 2).fill(0xffffff);
+    drawHiveMark(g, ox + W * 0.53, ey, W * 0.10);
 
     // forward arm (swings with the run)
     const armY = airborne ? H * 0.36 : (this.runPhase === 0 ? H * 0.40 : H * 0.46);
@@ -670,10 +671,9 @@ function drawBlock(g: Graphics, w: number, h: number) {
   g.poly(hexPts(0, 2, 8)).stroke({ width: 1.5, color: 0x6fd3ff, alpha: 0.75 });                    // hex glyph
 }
 
-// A pickup drawn as a glossy gold coin stamped with a Hive-red hexagon.
+// A pickup drawn as a glossy gold coin stamped with the Hive logo.
 function drawCoin(g: Graphics, r: number) {
   g.circle(0, 0, r).fill(0xffcf3f).stroke({ width: 2, color: 0x8a5a10, alpha: 0.9 });
   g.circle(-r * 0.32, -r * 0.32, r * 0.5).fill({ color: 0xffffff, alpha: 0.28 }); // gloss
-  g.poly(hexPts(0, 0, r * 0.58)).stroke({ width: 2, color: HIVE_RED });
-  g.poly(hexPts(0, 0, r * 0.30)).fill(HIVE_RED);
+  drawHiveMark(g, 0, 0, r * 0.6);
 }

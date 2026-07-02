@@ -1,32 +1,24 @@
-// The Hive logo mark, drawn from primitives: a flat-top hexagon with the signature
-// downward notch cut into its top edge (the "fold" that makes it read as Hive, not a
-// plain hexagon). Used for the character emblem, HUD watermark, and background hints.
+// The Hive logo mark, drawn from primitives to match the real brand: a solid diamond
+// (rhombus) on the left followed by two bold chevrons pointing right ( ◆ » ). Used for
+// the character emblem, the HUD watermark, and the drifting background hints.
 
 import { Graphics } from "pixi.js";
 
 export const HIVE_RED = 0xe31337;
 
 export function drawHiveMark(g: Graphics, cx: number, cy: number, r: number, color = HIVE_RED, alpha = 1) {
-  const s = r * 0.866; // half-height of a flat-top hexagon
-  const n = r * 0.22;  // notch half-width
-  g.poly([
-    cx + r, cy,            // right
-    cx + r / 2, cy + s,    // lower-right
-    cx - r / 2, cy + s,    // lower-left
-    cx - r, cy,            // left
-    cx - r / 2, cy - s,    // upper-left
-    cx - n, cy - s,        // notch: left shoulder
-    cx, cy - r * 0.30,     // notch: valley (the fold)
-    cx + n, cy - s,        // notch: right shoulder
-    cx + r / 2, cy - s,    // upper-right
-  ]).fill({ color, alpha });
-}
+  const hh = r * 0.66;   // half height of each element
+  const t = r * 0.4;     // chevron stroke thickness (bold)
+  const x = cx - r * 0.15; // nudge so the group looks visually centered on cx
 
-/** Outline-only variant, for faint background hints. */
-export function strokeHiveMark(g: Graphics, cx: number, cy: number, r: number, color: number, alpha: number, width = 2) {
-  const s = r * 0.866, n = r * 0.22;
-  g.poly([
-    cx + r, cy, cx + r / 2, cy + s, cx - r / 2, cy + s, cx - r, cy,
-    cx - r / 2, cy - s, cx - n, cy - s, cx, cy - r * 0.30, cx + n, cy - s, cx + r / 2, cy - s,
-  ]).stroke({ width, color, alpha });
+  // diamond (left element)
+  const dcx = x - r * 0.7, dw = r * 0.42;
+  g.poly([dcx, cy - hh, dcx + dw, cy, dcx, cy + hh, dcx - dw, cy]).fill({ color, alpha });
+
+  // two chevrons pointing right ( » )
+  const chevron = (x0: number) =>
+    g.moveTo(x0, cy - hh).lineTo(x0 + r * 0.5, cy).lineTo(x0, cy + hh)
+      .stroke({ width: t, color, alpha, cap: "butt", join: "miter", miterLimit: 6 });
+  chevron(x - r * 0.12);
+  chevron(x + r * 0.5);
 }
