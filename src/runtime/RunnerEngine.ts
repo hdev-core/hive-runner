@@ -43,7 +43,10 @@ export class RunnerEngine {
   private livesText!: Text;
   private levelText!: Text;
   private blockText!: Text;
-  private backdropCaption?: Text;
+  private backdropCard?: Container;
+  private backdropSet = false;   // has any post-photo backdrop loaded yet this run?
+  private backdropRetries = 0;   // retry the first backdrop until the image queue is ready
+  private disposed = false;
   private overlay?: Container;
   private banner?: Container;
   private bannerTimer = 0;
@@ -374,24 +377,48 @@ export class RunnerEngine {
     if (test) { this.background.setPhoto(test); this.showBackdropCaption({ author: "test", title: "backdrop test" }); return; }
     if (!this.postFeed) return;
     const post = this.postFeed.nextImage();
-    if (!post?.image) return;
+    if (!post?.image) {
+      // The image queue isn't ready yet (level 1 right after boot). Retry until it loads,
+      // so the first level gets a backdrop too instead of staying on the themed fallback.
+      if (!this.backdropSet && this.backdropRetries < 16) {
+        this.backdropRetries++;
+        window.setTimeout(() => { if (!this.disposed && !this.state.over) this.setLevelBackdrop(); }, 500);
+      }
+      return;
+    }
+    this.backdropSet = true;
     this.background.setPhoto(post.image);
     this.showBackdropCaption(post);
   }
 
+  // A credit card pinned bottom-left so it's clear the backdrop is a real Hive post:
+  // the author's profile pic + @handle + post title.
   private showBackdropCaption(post: { author: string; title: string }) {
-    const text = `🖼 @${post.author} · ${post.title}`;
-    if (!this.backdropCaption) {
-      this.backdropCaption = new Text({
-        text,
-        style: { fontFamily: "system-ui", fontSize: 11, fontWeight: "600", fill: 0xe8e8f0,
-          stroke: { color: 0x05060a, width: 3 }, wordWrap: true, wordWrapWidth: this.spec.world.width - 24 },
-      });
-      this.backdropCaption.position.set(12, this.spec.world.height - 24);
-      this.hud.addChild(this.backdropCaption);
-    } else {
-      this.backdropCaption.text = text;
-    }
+    this.backdropCard?.destroy();
+    const c = new Container();
+    const r = 12, title = post.title.length > 44 ? post.title.slice(0, 42) + "…" : post.title;
+    const label = new Text({
+      text: `@${post.author}  ·  ${title}`,
+      style: { fontFamily: "system-ui", fontSize: 12, fontWeight: "700", fill: 0xffffff },
+    });
+    const tag = new Text({
+      text: "🖼 Hive post",
+      style: { fontFamily: "system-ui", fontSize: 9, fontWeight: "700", fill: 0x9fd3ff },
+    });
+    const cardW = 12 + r * 2 + 8 + Math.max(label.width, tag.width) + 12;
+    const cardH = r * 2 + 14;
+    const pill = new Graphics()
+      .roundRect(0, 0, cardW, cardH, cardH / 2).fill({ color: 0x0a0a14, alpha: 0.66 })
+      .roundRect(0, 0, cardW, cardH, cardH / 2).stroke({ width: 1.5, color: 0x5a9bff, alpha: 0.8 });
+    const av = new Graphics().circle(0, 0, r).fill(0x2a3350);
+    av.position.set(12 + r, cardH / 2);
+    tag.position.set(12 + r * 2 + 8, 6);
+    label.position.set(12 + r * 2 + 8, 6 + tag.height + 1);
+    c.addChild(pill, av, tag, label);
+    attachAvatar(av, post.author, r);
+    c.position.set(10, this.spec.world.height - cardH - 8);
+    this.hud.addChild(c);
+    this.backdropCard = c;
   }
 
   // --- obstacles -------------------------------------------------------------
@@ -619,6 +646,7 @@ export class RunnerEngine {
   }
 
   destroy() {
+    this.disposed = true;
     window.removeEventListener("keydown", this.boundKeyDown);
     window.removeEventListener("keyup", this.boundKeyUp);
     this.app.canvas.removeEventListener("pointerdown", this.boundTap);
