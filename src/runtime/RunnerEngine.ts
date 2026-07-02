@@ -304,6 +304,9 @@ export class RunnerEngine {
     this.hud.addChild(t);
     let life = 750;
     const tick = (d: { deltaMS: number }) => {
+      // the engine may be destroyed (Play Again / level change / game over) mid-animation,
+      // which destroys `t`; bail before touching its now-null transform
+      if (t.destroyed) { this.app.ticker.remove(tick); return; }
       life -= d.deltaMS;
       t.y -= 0.6 * (d.deltaMS / 16.667);
       t.alpha = Math.max(0, life / 750);
@@ -319,6 +322,7 @@ export class RunnerEngine {
     this.hud.addChild(g);
     let life = 520;
     const tick = (d: { deltaMS: number }) => {
+      if (g.destroyed) { this.app.ticker.remove(tick); return; }
       life -= d.deltaMS; g.alpha = Math.max(0, life / 520);
       if (life <= 0) { this.app.ticker.remove(tick); g.destroy(); }
     };
@@ -624,6 +628,7 @@ export class RunnerEngine {
     this.hud.addChildAt(g, 0);
     let life = 160;
     const tick = (delta: { deltaMS: number }) => {
+      if (g.destroyed) { this.app.ticker.remove(tick); return; }
       life -= delta.deltaMS;
       g.alpha = Math.max(0, life / 160) * 0.18;
       if (life <= 0) { this.app.ticker.remove(tick); g.destroy(); }

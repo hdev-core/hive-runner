@@ -310,6 +310,7 @@ export class FallingEngine {
     this.hud.addChild(t);
     let life = 750;
     const tick = (d: { deltaMS: number }) => {
+      if (t.destroyed) { this.app.ticker.remove(tick); return; } // engine torn down mid-animation
       life -= d.deltaMS;
       t.y -= 0.6 * (d.deltaMS / 16.667);
       t.alpha = Math.max(0, life / 750);
@@ -325,6 +326,7 @@ export class FallingEngine {
     this.hud.addChild(g);
     let life = 520;
     const tick = (d: { deltaMS: number }) => {
+      if (g.destroyed) { this.app.ticker.remove(tick); return; }
       life -= d.deltaMS; g.alpha = Math.max(0, life / 520);
       if (life <= 0) { this.app.ticker.remove(tick); g.destroy(); }
     };
@@ -490,6 +492,7 @@ export class FallingEngine {
     this.hud.addChildAt(g, 0);
     let life = 160;
     const tick = (delta: { deltaMS: number }) => {
+      if (g.destroyed) { this.app.ticker.remove(tick); return; }
       life -= delta.deltaMS;
       g.alpha = Math.max(0, life / 160) * 0.18;
       if (life <= 0) { this.app.ticker.remove(tick); g.destroy(); }

@@ -158,6 +158,10 @@ function showPostToast(post: HivePost) {
 function escapeHtml(s: string) {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
 }
+// Opening a post steals focus — auto-pause a running game so the player doesn't die while reading.
+$("post-toast").addEventListener("click", () => {
+  if (started && !paused && !lastGameOver) togglePause();
+});
 function updatePostBtn() { postScoreBtn.disabled = !(lastGameOver && hiveAccount); }
 
 function setOverlay(mode: "start" | "resume" | "playagain" | "none") {
