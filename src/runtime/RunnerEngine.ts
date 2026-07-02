@@ -26,6 +26,17 @@ interface Obstacle {
 interface Billboard { node: Container; vx: number; w: number; }
 
 const GRAVITY = 1.0;
+const HIVE_RED = 0xe31337;
+
+// pointy-top hexagon points (the Hive motif), centered at (cx,cy)
+function hexPts(cx: number, cy: number, r: number): number[] {
+  const p: number[] = [];
+  for (let i = 0; i < 6; i++) {
+    const a = (Math.PI / 180) * (60 * i - 90);
+    p.push(cx + r * Math.cos(a), cy + r * Math.sin(a));
+  }
+  return p;
+}
 
 export class RunnerEngine {
   private background!: Background;
@@ -43,10 +54,6 @@ export class RunnerEngine {
   private livesText!: Text;
   private levelText!: Text;
   private blockText!: Text;
-  private backdropCard?: Container;
-  private backdropSet = false;   // has any post-photo backdrop loaded yet this run?
-  private backdropRetries = 0;   // retry the first backdrop until the image queue is ready
-  private disposed = false;
   private overlay?: Container;
   private banner?: Container;
   private bannerTimer = 0;
@@ -133,7 +140,6 @@ export class RunnerEngine {
     for (const e of this.spawnables()) this.spawnTimers.set(e.id, this.spawnIntervalMs(e));
     this.syncHud();
     this.showBoostBanner();
-    this.setLevelBackdrop();
 
     window.addEventListener("keydown", this.boundKeyDown);
     window.addEventListener("keyup", this.boundKeyUp);
@@ -368,61 +374,7 @@ export class RunnerEngine {
     this.speedMult *= 1.08;
     this.spawnMult *= 1.12;
     for (const e of this.spawnables()) this.spawnTimers.set(e.id, this.spawnIntervalMs(e));
-    this.setLevelBackdrop(); // fresh Hive post photo as the backdrop for the new level
     this.showBanner(`Level ${this.state.level}`, "faster · busier");
-  }
-
-  // Per-level full-scene backdrop: a random real Hive post's image behind the action.
-  // Disable for comparison with ?flatbg=1 (keeps the themed parallax background).
-  private setLevelBackdrop() {
-    const params = new URLSearchParams(location.search);
-    if (params.get("flatbg") === "1") return;
-    const test = params.get("bgtest"); // dev: force a specific backdrop image (bypasses Hive fetch)
-    if (test) { this.background.setPhoto(test); this.showBackdropCaption({ author: "test", title: "backdrop test" }); return; }
-    if (!this.postFeed) return;
-    const post = this.postFeed.nextImage();
-    if (!post?.image) {
-      // The image queue isn't ready yet (level 1 right after boot). Retry until it loads,
-      // so the first level gets a backdrop too instead of staying on the themed fallback.
-      if (!this.backdropSet && this.backdropRetries < 16) {
-        this.backdropRetries++;
-        window.setTimeout(() => { if (!this.disposed && !this.state.over) this.setLevelBackdrop(); }, 500);
-      }
-      return;
-    }
-    this.backdropSet = true;
-    this.background.setPhoto(post.image);
-    this.showBackdropCaption(post);
-  }
-
-  // A credit card pinned bottom-left so it's clear the backdrop is a real Hive post:
-  // the author's profile pic + @handle + post title.
-  private showBackdropCaption(post: { author: string; title: string }) {
-    this.backdropCard?.destroy();
-    const c = new Container();
-    const r = 12, title = post.title.length > 44 ? post.title.slice(0, 42) + "…" : post.title;
-    const label = new Text({
-      text: `@${post.author}  ·  ${title}`,
-      style: { fontFamily: "system-ui", fontSize: 12, fontWeight: "700", fill: 0xffffff },
-    });
-    const tag = new Text({
-      text: "🖼 Hive post",
-      style: { fontFamily: "system-ui", fontSize: 9, fontWeight: "700", fill: 0x9fd3ff },
-    });
-    const cardW = 12 + r * 2 + 8 + Math.max(label.width, tag.width) + 12;
-    const cardH = r * 2 + 14;
-    const pill = new Graphics()
-      .roundRect(0, 0, cardW, cardH, cardH / 2).fill({ color: 0x0a0a14, alpha: 0.66 })
-      .roundRect(0, 0, cardW, cardH, cardH / 2).stroke({ width: 1.5, color: 0x5a9bff, alpha: 0.8 });
-    const av = new Graphics().circle(0, 0, r).fill(0x2a3350);
-    av.position.set(12 + r, cardH / 2);
-    tag.position.set(12 + r * 2 + 8, 6);
-    label.position.set(12 + r * 2 + 8, 6 + tag.height + 1);
-    c.addChild(pill, av, tag, label);
-    attachAvatar(av, post.author, r);
-    c.position.set(10, this.spec.world.height - cardH - 8);
-    this.hud.addChild(c);
-    this.backdropCard = c;
   }
 
   // --- obstacles -------------------------------------------------------------
@@ -464,8 +416,8 @@ export class RunnerEngine {
     const w = isPickup ? 28 : 34;
     const h = isPickup ? 28 : 42;
     const gfx = new Graphics();
-    if (isPickup) gfx.circle(0, 0, w / 2).fill(this.pickupColor());
-    else gfx.roundRect(-w / 2, -h / 2, w, h, 4).fill(0x6b4a3a);
+    if (isPickup) drawCoin(gfx, w / 2);
+    else drawBlock(gfx, w, h);
     // hazards sit on the ground; pickups float at jump height
     const y = isPickup ? this.groundY - 118 : this.groundY - h / 2;
     gfx.position.set(this.spec.world.width + w, y);
@@ -529,48 +481,71 @@ export class RunnerEngine {
     return (haz?.speed ?? 4.5) * this.speedMult;
   }
 
+  // A dark "on-chain ledger" strip: slate band, crisp Hive-red rim + glow, a faint hex
+  // grid, and scrolling cyan dashes for motion.
   private drawGround() {
-    const { width, height, palette } = this.spec.world;
+    const { width, height } = this.spec.world;
     const g = this.bg;
+    const gy = this.groundY;
     g.clear();
-    // land band
-    const landColor = parseHex(palette?.[0]) ? shade(parseHex(palette![0])!, -0.35) : 0x2b3a20;
-    g.rect(0, this.groundY, width, height - this.groundY).fill(landColor);
-    g.rect(0, this.groundY - 3, width, 3).fill(0xffffff).alpha = 1;
-    // scrolling dashes to convey motion
+    // land band (two tones for depth)
+    g.rect(0, gy, width, height - gy).fill(0x151a2e);
+    g.rect(0, gy, width, 26).fill(0x1c2340);
+    // crisp Hive-red rim + soft glow above it
+    g.rect(0, gy - 2, width, 3).fill(HIVE_RED);
+    g.rect(0, gy - 6, width, 4).fill({ color: HIVE_RED, alpha: 0.22 });
+    // faint honeycomb ticks along the rim (Hive motif), scrolling with the world
+    for (let x = -60; x < width + 60; x += 60) {
+      const px = x - this.scrollOffset * 1.5;
+      g.poly(hexPts(px, gy + 46, 12)).stroke({ width: 1.5, color: 0x3a63b0, alpha: 0.35 });
+    }
+    // scrolling motion dashes
     for (let x = -40; x < width + 40; x += 40) {
       const px = x - this.scrollOffset;
-      g.rect(px, this.groundY + 22, 20, 4).fill({ color: 0xffffff, alpha: 0.18 });
+      g.rect(px, gy + 22, 22, 3).fill({ color: 0x6fd3ff, alpha: 0.35 });
     }
   }
 
+  // The "Hive courier": a crisp, outlined runner with a fluttering Hive-red cape, a hex
+  // chest emblem and a cyan visor. Legs alternate while running, tuck while airborne.
   private drawRunner() {
     const g = this.avatar;
     g.clear();
     const W = this.sx, H = this.sy, ox = -W / 2, oy = -H / 2;
-    const body = parseHex(this.spec.world.palette?.[0]) ?? 0xe0863a;
-    const skin = 0xf0c9a0, legc = 0x2c2c3a;
+    const NAVY = 0x2a3255, SKIN = 0xf1cba2, VISOR = 0x74e0ff, OUT = 0x0b0e1c;
     const airborne = !this.grounded;
-    // legs: alternate while running; tucked while airborne
-    if (airborne) {
-      g.roundRect(ox + W * 0.30, oy + H * 0.68, W * 0.16, H * 0.22, 3).fill(legc);
-      g.roundRect(ox + W * 0.54, oy + H * 0.64, W * 0.16, H * 0.22, 3).fill(legc);
-    } else if (this.runPhase === 0) {
-      g.roundRect(ox + W * 0.22, oy + H * 0.70, W * 0.18, H * 0.28, 3).fill(legc);
-      g.roundRect(ox + W * 0.58, oy + H * 0.72, W * 0.16, H * 0.24, 3).fill(legc);
-    } else {
-      g.roundRect(ox + W * 0.28, oy + H * 0.72, W * 0.16, H * 0.24, 3).fill(legc);
-      g.roundRect(ox + W * 0.52, oy + H * 0.70, W * 0.18, H * 0.28, 3).fill(legc);
-    }
-    // torso + forward arm (running lean)
-    g.roundRect(ox + W * 0.26, oy + H * 0.34, W * 0.50, H * 0.40, 5).fill(body);
-    g.roundRect(ox + W * 0.66, oy + H * 0.40, W * 0.20, H * 0.14, 4).fill(body);
-    // head + eyes facing right
-    g.circle(W * 0.04, oy + H * 0.20, W * 0.24).fill(skin);
-    g.circle(W * 0.10, oy + H * 0.17, W * 0.04).fill(0x1a1a22);
-  }
+    const fl = Math.sin(this.state.elapsed / 90) * (W * 0.10); // cape flutter
 
-  private pickupColor(): number { return parseHex(this.spec.world.palette?.[1]) ?? 0xffd23f; }
+    // cape (behind the body), trailing left with a darker inner fold
+    g.poly([ox + W * 0.40, oy + H * 0.30, ox - W * 0.10 - fl * 0.5, oy + H * 0.28, ox - W * 0.30 - fl, oy + H * 0.52, ox - W * 0.12 - fl * 0.4, oy + H * 0.74, ox + W * 0.44, oy + H * 0.64]).fill(HIVE_RED);
+    g.poly([ox + W * 0.40, oy + H * 0.30, ox - W * 0.06 - fl * 0.5, oy + H * 0.33, ox - W * 0.16 - fl * 0.7, oy + H * 0.52, ox + W * 0.42, oy + H * 0.50]).fill({ color: 0x9c0c26, alpha: 0.55 });
+
+    // legs + Hive-red shoes
+    const leg = (x: number, yTop: number, len: number) => {
+      g.roundRect(x, oy + yTop, W * 0.17, len, 3).fill(NAVY).stroke({ width: 1.5, color: OUT, alpha: 0.55 });
+      g.roundRect(x - 1, oy + yTop + len - 2, W * 0.24, H * 0.07, 2).fill(HIVE_RED).stroke({ width: 1, color: OUT, alpha: 0.5 });
+    };
+    if (airborne) { leg(ox + W * 0.30, H * 0.62, H * 0.22); leg(ox + W * 0.54, H * 0.58, H * 0.22); }
+    else if (this.runPhase === 0) { leg(ox + W * 0.22, H * 0.66, H * 0.28); leg(ox + W * 0.56, H * 0.70, H * 0.22); }
+    else { leg(ox + W * 0.30, H * 0.70, H * 0.22); leg(ox + W * 0.50, H * 0.66, H * 0.28); }
+
+    // torso (jacket) with a Hive-red sash + hexagon emblem
+    g.roundRect(ox + W * 0.26, oy + H * 0.32, W * 0.50, H * 0.42, 6).fill(NAVY).stroke({ width: 2, color: OUT, alpha: 0.7 });
+    g.roundRect(ox + W * 0.30, oy + H * 0.34, W * 0.10, H * 0.38, 3).fill(HIVE_RED);
+    g.poly(hexPts(W * 0.10, oy + H * 0.50, W * 0.11)).fill(0xffffff).stroke({ width: 1.5, color: HIVE_RED });
+    g.poly(hexPts(W * 0.10, oy + H * 0.50, W * 0.055)).fill(HIVE_RED);
+
+    // forward arm (swings with the run)
+    const armY = airborne ? H * 0.36 : (this.runPhase === 0 ? H * 0.40 : H * 0.46);
+    g.roundRect(ox + W * 0.64, oy + armY, W * 0.26, H * 0.13, 4).fill(NAVY).stroke({ width: 1.5, color: OUT, alpha: 0.6 });
+    g.circle(ox + W * 0.90, oy + armY + H * 0.06, W * 0.09).fill(SKIN).stroke({ width: 1, color: OUT, alpha: 0.5 });
+
+    // head: skin + Hive-red cap + cyan visor (facing right)
+    const hx = W * 0.08, hy = oy + H * 0.18, hr = W * 0.25;
+    g.circle(hx, hy, hr).fill(SKIN).stroke({ width: 2, color: OUT, alpha: 0.6 });
+    g.roundRect(hx - hr - 1, hy - hr * 0.95, hr * 2 + 2, hr * 0.95, 4).fill(HIVE_RED).stroke({ width: 1.5, color: OUT, alpha: 0.6 });
+    g.roundRect(hx - hr * 0.35, hy - hr * 0.12, hr * 1.35, hr * 0.5, 3).fill(VISOR).stroke({ width: 1, color: OUT, alpha: 0.5 });
+  }
 
   // --- banners / hud ---------------------------------------------------------
 
@@ -651,7 +626,6 @@ export class RunnerEngine {
   }
 
   destroy() {
-    this.disposed = true;
     window.removeEventListener("keydown", this.boundKeyDown);
     window.removeEventListener("keyup", this.boundKeyUp);
     this.app.canvas.removeEventListener("pointerdown", this.boundTap);
@@ -671,16 +645,22 @@ export class RunnerEngine {
 }
 
 function isJumpKey(k: string) { return k === " " || k === "ArrowUp" || k === "w" || k === "W"; }
-function parseHex(s?: string): number | null {
-  if (!s) return null;
-  const m = s.replace("#", "");
-  const full = m.length === 3 ? m.split("").map((c) => c + c).join("") : m;
-  const n = parseInt(full, 16);
-  return Number.isNaN(n) ? null : n;
+
+// A hazard drawn as a crisp isometric "blockchain block": front + top + right faces,
+// a Hive-red lit top edge and a cyan hex glyph — reads as an on-chain block.
+function drawBlock(g: Graphics, w: number, h: number) {
+  const x = -w / 2, y = -h / 2, d = 6;
+  g.poly([x + w, y, x + w + d, y - d, x + w + d, y + h - d, x + w, y + h]).fill(0x151a30);         // right face
+  g.poly([x, y, x + d, y - d, x + w + d, y - d, x + w, y]).fill(0x3a4472);                         // top face
+  g.roundRect(x, y, w, h, 3).fill(0x272f56).stroke({ width: 2, color: 0x0b0e1c, alpha: 0.85 });    // front face
+  g.rect(x + 1, y + 1, w - 2, 3).fill({ color: HIVE_RED, alpha: 0.85 });                           // lit top edge
+  g.poly(hexPts(0, 2, 8)).stroke({ width: 1.5, color: 0x6fd3ff, alpha: 0.75 });                    // hex glyph
 }
-function shade(hex: number, amt: number): number {
-  const r = Math.max(0, Math.min(255, ((hex >> 16) & 255) + amt * 255));
-  const g = Math.max(0, Math.min(255, ((hex >> 8) & 255) + amt * 255));
-  const b = Math.max(0, Math.min(255, (hex & 255) + amt * 255));
-  return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b);
+
+// A pickup drawn as a glossy gold coin stamped with a Hive-red hexagon.
+function drawCoin(g: Graphics, r: number) {
+  g.circle(0, 0, r).fill(0xffcf3f).stroke({ width: 2, color: 0x8a5a10, alpha: 0.9 });
+  g.circle(-r * 0.32, -r * 0.32, r * 0.5).fill({ color: 0xffffff, alpha: 0.28 }); // gloss
+  g.poly(hexPts(0, 0, r * 0.58)).stroke({ width: 2, color: HIVE_RED });
+  g.poly(hexPts(0, 0, r * 0.30)).fill(HIVE_RED);
 }
