@@ -4,7 +4,7 @@
 //   - city/run -> sunset gradient + parallax skyline (scrolls with the world)
 //   - orchard/other -> sky gradient + drifting clouds + hills
 
-import { Container, Graphics } from "pixi.js";
+import { Assets, Container, Graphics, Sprite } from "pixi.js";
 import type { GameSpec } from "../types/spec.ts";
 
 interface Layer { node: Container; factor: number; span: number; axis: "x" | "y"; }
@@ -12,6 +12,10 @@ interface Layer { node: Container; factor: number; span: number; axis: "x" | "y"
 export class Background {
   container = new Container();
   private layers: Layer[] = [];
+  private sky: Graphics;
+  private decor = new Container();  // themed parallax decor (stars/skyline/clouds)
+  private photoLayer = new Container(); // full-scene post-image backdrop (optional)
+  private photoToken = 0;           // guards against out-of-order async loads
   private w: number;
   private h: number;
   private vertical: boolean;
@@ -23,13 +27,38 @@ export class Background {
     const theme = (spec.meta.theme ?? "").toLowerCase();
 
     const [top, bot] = skyColors(theme);
-    const sky = new Graphics();
-    drawVGradient(sky, this.w, this.h, top, bot);
-    this.container.addChild(sky);
+    this.sky = new Graphics();
+    drawVGradient(this.sky, this.w, this.h, top, bot);
+    // order: sky (bottom) -> photo backdrop -> themed decor
+    this.container.addChild(this.sky, this.photoLayer, this.decor);
 
     if (theme.includes("space")) this.addStars();
     else if (theme.includes("city") || theme.includes("run")) this.addSkyline();
     else this.addClouds();
+  }
+
+  // Set (or swap) a full-scene photo backdrop from a Hive post image. Loaded through the
+  // wsrv.nl CORS proxy (arbitrary post-image hosts lack the CORS headers WebGL needs) and
+  // cover-fit to the world. A dark scrim keeps gameplay readable; themed decor is hidden
+  // while a photo is showing. Falls back silently to the themed background on failure.
+  setPhoto(rawUrl: string) {
+    const token = ++this.photoToken;
+    const proxied = `https://wsrv.nl/?url=${encodeURIComponent(rawUrl.replace(/^https?:\/\//, ""))}&w=960&h=720&fit=cover&output=jpg`;
+    Assets.load({ src: proxied, loadParser: "loadTextures" })
+      .then((tex) => {
+        if (!tex || token !== this.photoToken || this.container.destroyed) return;
+        const sprite = new Sprite(tex);
+        sprite.anchor.set(0.5);
+        const scale = Math.max(this.w / sprite.texture.width, this.h / sprite.texture.height);
+        sprite.scale.set(scale);
+        sprite.position.set(this.w / 2, this.h / 2);
+        const scrim = new Graphics().rect(0, 0, this.w, this.h).fill({ color: 0x0a0a14, alpha: 0.5 });
+        this.photoLayer.removeChildren().forEach((c) => c.destroy());
+        this.photoLayer.addChild(sprite, scrim);
+        this.sky.visible = false;
+        this.decor.visible = false;
+      })
+      .catch(() => { /* keep the themed background */ });
   }
 
   update(dtMs: number, worldScroll: number) {
@@ -63,7 +92,7 @@ export class Background {
     }
     node.addChild(g);
     node.y = -this.h;
-    this.container.addChild(node);
+    this.decor.addChild(node);
     this.layers.push({ node, factor: this.vertical ? 0.6 : 0.4, span: this.h, axis: "y" });
   }
 
@@ -92,7 +121,7 @@ export class Background {
       }
     }
     node.addChild(g);
-    this.container.addChild(node);
+    this.decor.addChild(node);
     this.layers.push({ node, factor, span: this.w, axis: "x" });
   }
 
@@ -110,7 +139,7 @@ export class Background {
       }
     }
     node.addChild(g);
-    this.container.addChild(node);
+    this.decor.addChild(node);
     // gentle horizontal drift regardless of orientation
     this.layers.push({ node, factor: 0.15, span: this.w, axis: "x" });
   }

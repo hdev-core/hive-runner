@@ -32,11 +32,14 @@ export interface HivePost {
   permlink: string;
   title: string;
   community?: string; // human-readable community/category, if any
+  image?: string;     // first image URL from the post, if any (raw, un-proxied)
 }
 
 export class PostFeed {
   private queue: HivePost[] = [];
+  private imageQueue: HivePost[] = []; // posts that have an image (for full-scene backdrops)
   private idx = 0;
+  private imgIdx = 0;
   private lastAuthor = "";
   private account = "";
   private timer: number | null = null;
@@ -76,6 +79,14 @@ export class PostFeed {
     return p;
   }
 
+  /** Next post that has an image — used for the per-level full-scene backdrop. */
+  nextImage(): HivePost | null {
+    if (!this.imageQueue.length) return null;
+    const p = this.imageQueue[this.imgIdx % this.imageQueue.length];
+    this.imgIdx++;
+    return p;
+  }
+
   private async refresh() {
     try {
       const raw: any[] = this.account
@@ -88,6 +99,7 @@ export class PostFeed {
           permlink: String(p.permlink ?? ""),
           title: clean(String(p.title)),
           community: p.community_title || p.category || undefined,
+          image: firstImage(p),
         }));
       if (mapped.length) {
         // Shuffle so the stream isn't always the same "created" order (whose top slots are
@@ -98,6 +110,7 @@ export class PostFeed {
           [mapped[i], mapped[j]] = [mapped[j], mapped[i]];
         }
         this.queue = mapped;
+        this.imageQueue = mapped.filter((p) => !!p.image);
       }
     } catch {
       /* keep the previous queue on failure */
@@ -108,4 +121,13 @@ export class PostFeed {
 function clean(s: string): string {
   const t = s.replace(/\s+/g, " ").trim();
   return t.length > 90 ? t.slice(0, 88) + "…" : t;
+}
+
+// Pull the first usable image URL from a bridge post's json_metadata (object or string form).
+function firstImage(p: any): string | undefined {
+  let jm = p?.json_metadata;
+  if (typeof jm === "string") { try { jm = JSON.parse(jm); } catch { jm = null; } }
+  const arr = jm?.image ?? jm?.images;
+  const url = Array.isArray(arr) ? arr[0] : typeof arr === "string" ? arr : undefined;
+  return typeof url === "string" && /^https?:\/\//.test(url) ? url : undefined;
 }

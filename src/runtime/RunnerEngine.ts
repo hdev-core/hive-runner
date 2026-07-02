@@ -43,6 +43,7 @@ export class RunnerEngine {
   private livesText!: Text;
   private levelText!: Text;
   private blockText!: Text;
+  private backdropCaption?: Text;
   private overlay?: Container;
   private banner?: Container;
   private bannerTimer = 0;
@@ -129,6 +130,7 @@ export class RunnerEngine {
     for (const e of this.spawnables()) this.spawnTimers.set(e.id, this.spawnIntervalMs(e));
     this.syncHud();
     this.showBoostBanner();
+    this.setLevelBackdrop();
 
     window.addEventListener("keydown", this.boundKeyDown);
     window.addEventListener("keyup", this.boundKeyUp);
@@ -359,7 +361,37 @@ export class RunnerEngine {
     this.speedMult *= 1.08;
     this.spawnMult *= 1.12;
     for (const e of this.spawnables()) this.spawnTimers.set(e.id, this.spawnIntervalMs(e));
+    this.setLevelBackdrop(); // fresh Hive post photo as the backdrop for the new level
     this.showBanner(`Level ${this.state.level}`, "faster · busier");
+  }
+
+  // Per-level full-scene backdrop: a random real Hive post's image behind the action.
+  // Disable for comparison with ?flatbg=1 (keeps the themed parallax background).
+  private setLevelBackdrop() {
+    const params = new URLSearchParams(location.search);
+    if (params.get("flatbg") === "1") return;
+    const test = params.get("bgtest"); // dev: force a specific backdrop image (bypasses Hive fetch)
+    if (test) { this.background.setPhoto(test); this.showBackdropCaption({ author: "test", title: "backdrop test" }); return; }
+    if (!this.postFeed) return;
+    const post = this.postFeed.nextImage();
+    if (!post?.image) return;
+    this.background.setPhoto(post.image);
+    this.showBackdropCaption(post);
+  }
+
+  private showBackdropCaption(post: { author: string; title: string }) {
+    const text = `🖼 @${post.author} · ${post.title}`;
+    if (!this.backdropCaption) {
+      this.backdropCaption = new Text({
+        text,
+        style: { fontFamily: "system-ui", fontSize: 11, fontWeight: "600", fill: 0xe8e8f0,
+          stroke: { color: 0x05060a, width: 3 }, wordWrap: true, wordWrapWidth: this.spec.world.width - 24 },
+      });
+      this.backdropCaption.position.set(12, this.spec.world.height - 24);
+      this.hud.addChild(this.backdropCaption);
+    } else {
+      this.backdropCaption.text = text;
+    }
   }
 
   // --- obstacles -------------------------------------------------------------
