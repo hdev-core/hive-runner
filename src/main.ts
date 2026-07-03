@@ -3,14 +3,15 @@ import type { GameSpec } from "./types/spec.ts";
 import { fruitRush } from "./specs/fruitRush.ts";
 import { meteorDodge } from "./specs/meteorDodge.ts";
 import { runnerDash } from "./specs/runnerDash.ts";
-import { makeActivity } from "./activity/mockActivity.ts";
+import { makeActivity, type ActivityInputs } from "./activity/mockActivity.ts";
 import { applyHooks } from "./runtime/hooks.ts";
 import { createEngine, type ArchetypeEngine } from "./runtime/createEngine.ts";
 import type { EngineState } from "./runtime/FallingEngine.ts";
 import { HiveFeed } from "./hive/HiveFeed.ts";
 import { PostFeed, type HivePost } from "./hive/PostFeed.ts";
 import { getGhosts, getCommunities } from "./hive/HiveSocial.ts";
-import { postScore } from "./hive/HiveAuth.ts";
+import { postScore, login, hasKeychain } from "./hive/HiveAuth.ts";
+import { getEnergyInputs } from "./hive/HiveEnergy.ts";
 import { RaceStrip } from "./race/RaceStrip.ts";
 import { CONTEST, weekId, msUntilWeekEnd, formatCountdown, type LeaderboardFile } from "./contest.ts";
 
@@ -62,6 +63,9 @@ const postScoreBtn = $("post-score") as HTMLButtonElement;
 const overlayBtn = $("playagain") as HTMLButtonElement; // contextual: Start / Resume / Play again
 const startBtn = $("start-btn") as HTMLButtonElement;
 const pauseBtn = $("pause-btn") as HTMLButtonElement;
+const loginBtn = $("login-btn") as HTMLButtonElement;
+const logoutBtn = $("logout") as HTMLButtonElement;
+const energyEl = $("energy");
 const hiveStatus = $("hive-status");
 const teamRow = $("team-row");
 const toast = $("toast");
@@ -126,6 +130,7 @@ setInterval(tickCountdown, 30000);
 void loadLeaderboard();
 
 let hiveAccount = "";
+let realEnergy: ActivityInputs | null = null; // live on-chain energy inputs when logged in
 let lastScore = 0;
 let lastGameOver = false;
 let lastRaceMs = -1;
@@ -205,16 +210,51 @@ async function loadHive(user: string) {
     }
     teamRow.style.display = "inline-flex";
     hiveStatus.textContent = ghosts.length ? `@${user} · racing ${ghosts.length} rivals` : `@${user} · (no follows to race)`;
+    localStorage.setItem("hiverunner_account", user); // persist session
+    logoutBtn.style.display = "inline-block";
     renderContest(); // highlight the player's row / standing now that we know who they are
     updatePostBtn();
+    void loadEnergy(user); // real on-chain energy powers the next run
   } catch {
     hiveStatus.textContent = "couldn't load @" + user;
   }
 }
 
+// Read the player's live Hive energy (RC/mana + 24h ops + Actifit steps) and show it.
+async function loadEnergy(user: string) {
+  try {
+    energyEl.style.display = "inline-flex";
+    energyEl.textContent = "⚡ …";
+    realEnergy = await getEnergyInputs(user);
+    const a = makeActivity(realEnergy);
+    energyEl.textContent = `⚡ ${a.energy}/15 · ${Math.round(a.vitality * 100)}%`;
+    energyEl.title = `Live Hive energy — RC/mana ${realEnergy.manaPct.toFixed(0)}% · ${realEnergy.ops24h} ops/24h · ${realEnergy.steps.toLocaleString()} Actifit steps → energy ${a.energy}/15. Powers bonus lives, jump & score multiplier.`;
+  } catch { /* keep whatever we had */ }
+}
+
 const cleanName = (s: string) => s.trim().replace(/^@/, "").toLowerCase();
+
+// Keychain login: prove ownership by signing a challenge, then load the account.
+// (Score posts are Keychain-signed too, so the leaderboard is tamper-proof either way;
+// this just gives a real verified session + persists it.)
+async function doLogin() {
+  const user = cleanName(hiveUser.value);
+  if (!user) { hiveStatus.textContent = "enter your @username first"; return; }
+  if (!hasKeychain()) { hiveStatus.textContent = "no Keychain — using read-only"; await loadHive(user); return; }
+  hiveStatus.textContent = "check Hive Keychain…";
+  const r = await login(user);
+  if (!r.ok) { hiveStatus.textContent = "login failed: " + (r.error ?? ""); return; }
+  localStorage.setItem("hiverunner_verified", user);
+  await loadHive(user);
+}
+loginBtn.addEventListener("click", () => void doLogin());
+logoutBtn.addEventListener("click", () => {
+  localStorage.removeItem("hiverunner_account");
+  localStorage.removeItem("hiverunner_verified");
+  location.reload();
+});
 $("hive-load").addEventListener("click", () => loadHive(cleanName(hiveUser.value)));
-hiveUser.addEventListener("keydown", (e) => { if (e.key === "Enter") loadHive(cleanName(hiveUser.value)); });
+hiveUser.addEventListener("keydown", (e) => { if (e.key === "Enter") void doLogin(); });
 postScoreBtn.addEventListener("click", async () => {
   if (!hiveAccount) return;
   postScoreBtn.disabled = true;
@@ -237,8 +277,8 @@ overlayBtn.addEventListener("click", () => {
 startBtn.addEventListener("click", () => { if (!started && !lastGameOver) beginPlay(); else start(true); });
 pauseBtn.addEventListener("click", () => togglePause());
 {
-  const p = new URLSearchParams(location.search).get("hive");
-  if (p) { hiveUser.value = p; void loadHive(cleanName(p)); }
+  const p = new URLSearchParams(location.search).get("hive") || localStorage.getItem("hiverunner_account");
+  if (p) { hiveUser.value = p; void loadHive(cleanName(p)); } // restore session (or ?hive= override)
 }
 
 // --- Pixi app + game lifecycle ---------------------------------------------
@@ -314,11 +354,13 @@ function start(autostart = false) {
     : "Move with pointer or ← → keys";
   app.renderer.background.color = parseBg(currentSpec.world.palette?.[2]) ?? 0x101018;
 
-  const activity = makeActivity({
+  // real on-chain energy when logged in; otherwise the dev sliders (defaults for guests)
+  const inputs: ActivityInputs = realEnergy ?? {
     ops24h: Number(opsSlider.value),
     manaPct: Number(manaSlider.value),
     steps: Number(stepsSlider.value),
-  });
+  };
+  const activity = makeActivity(inputs);
   const applied = applyHooks(currentSpec, activity);
 
   // update the live debug panel

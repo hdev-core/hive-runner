@@ -37,6 +37,7 @@
       .hive-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; color: #b6b6c8; }
       .hive-bar input { background: #15151f; border: 1px solid #333; border-radius: 8px; color: #e8e8f0; padding: 6px 8px; width: 160px; }
       #hive-status { font-size: 12px; color: #8a8aa0; }
+      #energy { font-size: 12px; font-weight: 800; color: #ffd76a; background: #2a2410; border: 1px solid #5a4a12; padding: 4px 9px; border-radius: 999px; cursor: help; }
       #race-strip { width: min(460px, 94vw); }
       .race-caption { font-size: 11px; color: #9fd3ff; margin: 2px 0 3px; text-align: center; }
       .race-track { position: relative; height: 48px; background: linear-gradient(90deg,#141420,#1a1a2c); border: 1px solid #2a2a3a; border-radius: 10px; }
@@ -95,8 +96,11 @@
       </label>
       <div class="hive-bar">
         <input id="hive-user" placeholder="your Hive @username" />
+        <button id="login-btn">🔑 Login</button>
         <button id="hive-load" class="ghost">Load</button>
         <span id="hive-status">not connected</span>
+        <span id="energy" title="" style="display:none"></span>
+        <button id="logout" class="ghost" style="display:none">logout</button>
         <span id="team-row" style="display:none; gap:8px; align-items:center;">
           <label>Team <select id="community-select"></select></label>
           <button id="post-score" disabled>Post score</button>
