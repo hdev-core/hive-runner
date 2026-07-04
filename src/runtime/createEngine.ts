@@ -8,6 +8,7 @@ import { FallingEngine, type EngineState } from "./FallingEngine.ts";
 import { RunnerEngine } from "./RunnerEngine.ts";
 import type { HiveFeed } from "../hive/HiveFeed.ts";
 import type { PostFeed, HivePost } from "../hive/PostFeed.ts";
+import type { CosmeticRender } from "../cosmetics/progression.ts";
 
 export interface ArchetypeEngine {
   mount(): void;
@@ -24,13 +25,14 @@ export function createEngine(
   hiveFeed?: HiveFeed,
   postFeed?: PostFeed,
   onPost?: (post: HivePost) => void,
+  cosmetics?: CosmeticRender,
 ): ArchetypeEngine {
   switch (spec.meta.archetype) {
     case "catcher":
     case "dodger":
       return new FallingEngine(app, spec, bonusLives, scoreMultiplier, onState, hiveFeed);
     case "runner":
-      return new RunnerEngine(app, spec, bonusLives, scoreMultiplier, onState, hiveFeed, postFeed, onPost);
+      return new RunnerEngine(app, spec, bonusLives, scoreMultiplier, onState, hiveFeed, postFeed, onPost, cosmetics);
     default:
       throw new Error(`archetype "${spec.meta.archetype}" not implemented yet`);
   }

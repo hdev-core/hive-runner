@@ -18,11 +18,11 @@ export class Background {
   private h: number;
   private vertical: boolean;
 
-  constructor(spec: GameSpec) {
+  constructor(spec: GameSpec, themeOverride?: string) {
     this.w = spec.world.width;
     this.h = spec.world.height;
     this.vertical = spec.world.orientation !== "horizontal";
-    const theme = (spec.meta.theme ?? "").toLowerCase();
+    const theme = (themeOverride ?? spec.meta.theme ?? "").toLowerCase();
 
     const [top, mid, bot] = skyColors(theme);
     const sky = new Graphics();
@@ -31,7 +31,7 @@ export class Background {
 
     if (theme.includes("space")) {
       this.addStars();
-    } else if (theme.includes("city") || theme.includes("run") || theme.includes("hive")) {
+    } else if (theme.includes("city") || theme.includes("run") || theme.includes("hive") || theme.includes("neon") || theme.includes("dawn")) {
       this.addGlow();       // Hive-red horizon sun
       this.addHexField();   // drifting Hive hexagons (far, faint)
       this.addBlockSkyline(0.18, 0x241a48, 60, 150, 0x6fd3ff); // far towers (cyan windows)
@@ -159,6 +159,8 @@ export class Background {
 
 function skyColors(theme: string): [number, number, number] {
   if (theme.includes("space")) return [0x0a0a24, 0x140a30, 0x241238];
+  if (theme.includes("neon")) return [0x0a0420, 0x2a0a55, 0x08303a];   // dark violet -> teal
+  if (theme.includes("dawn")) return [0x102a5a, 0x9a5a7a, 0xf0a060];   // blue -> pink -> amber sunrise
   if (theme.includes("city") || theme.includes("run") || theme.includes("hive"))
     return [0x0b0e2a, 0x2a1746, 0x5a2440]; // indigo -> violet -> deep Hive-red horizon
   if (theme.includes("orchard")) return [0x74c4ff, 0xa8dcf0, 0xcdeaa4];

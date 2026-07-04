@@ -15,6 +15,8 @@ import { getEnergyInputs } from "./hive/HiveEnergy.ts";
 import { RaceStrip } from "./race/RaceStrip.ts";
 import { CONTEST, weekId, msUntilWeekEnd, formatCountdown, type LeaderboardFile } from "./contest.ts";
 import { markPlayed, recordRun, getStreak, getQuests, getDailyBonusLives } from "./daily.ts";
+import { resolveCosmetics, applyRun, getLevelInfo, ownedIds, getEquipped, equip } from "./cosmetics/progression.ts";
+import { byType, unlockLabel, TYPES, type CosmeticType } from "./cosmetics/catalog.ts";
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -123,6 +125,51 @@ function renderContest() {
       : "You're not on this week's board yet — post a score to enter.";
   }
 }
+
+// --- wardrobe (cosmetics/progression) ---------------------------------------
+const wardrobeEl = $("wardrobe");
+const wardrobeLevel = $("wardrobe-level");
+const wardrobeXp = $("wardrobe-xp");
+const wardrobeXpFill = $("wardrobe-xpfill");
+const wardrobeTabs = $("wardrobe-tabs");
+const wardrobeGrid = $("wardrobe-grid");
+let wardrobeTab: CosmeticType = "skin";
+const TAB_LABELS: Record<CosmeticType, string> = { skin: "Skins", parcel: "Parcels", trail: "Trails", theme: "Themes" };
+$("wardrobe-toggle").addEventListener("click", () => wardrobeEl.classList.toggle("open"));
+
+function renderWardrobe() {
+  const li = getLevelInfo();
+  wardrobeLevel.textContent = `Lv ${li.level}`;
+  wardrobeXp.textContent = `${li.intoLevel}/${li.forNext} XP`;
+  wardrobeXpFill.style.width = `${Math.round((li.intoLevel / li.forNext) * 100)}%`;
+  wardrobeTabs.innerHTML = "";
+  for (const t of TYPES) {
+    const b = document.createElement("button");
+    b.className = "wtab" + (t === wardrobeTab ? " active" : "");
+    b.textContent = TAB_LABELS[t];
+    b.onclick = () => { wardrobeTab = t; renderWardrobe(); };
+    wardrobeTabs.appendChild(b);
+  }
+  const owned = ownedIds();
+  const eq = getEquipped();
+  wardrobeGrid.innerHTML = "";
+  for (const c of byType(wardrobeTab)) {
+    const isOwned = owned.has(c.id);
+    const isEq = eq[wardrobeTab] === c.id;
+    const d = document.createElement("div");
+    d.className = `witem ${c.rarity}${isEq ? " equipped" : ""}${isOwned ? "" : " locked"}`;
+    d.innerHTML = `<span class="wname">${c.name}</span><span class="wmeta">${isEq ? "✓ equipped" : isOwned ? "tap to equip" : "🔒 " + unlockLabel(c.unlock)}</span>`;
+    if (isOwned && !isEq) d.onclick = () => {
+      if (equip(wardrobeTab, c.id)) {
+        renderWardrobe();
+        showToast(`Equipped ${c.name}`);
+        if (!started && !lastGameOver) start(false); // refresh the ready-scene preview
+      }
+    };
+    wardrobeGrid.appendChild(d);
+  }
+}
+renderWardrobe();
 
 // live countdown to Monday 00:00 UTC
 function tickCountdown() { contestCountEl.textContent = formatCountdown(msUntilWeekEnd()); }
@@ -358,6 +405,7 @@ async function boot() {
     $("app").style.height = "auto"; // let the page scroll to reach the dev panel
     contestEl.classList.add("open"); // show the contest card expanded while developing
     questsEl.classList.add("open");
+    wardrobeEl.classList.add("open");
   }
 
   // Pixi's RAF loop; the engine only advances when a run is started and not paused
@@ -417,7 +465,7 @@ function start(autostart = false) {
   vBasket.textContent = `×${applied.basketWidthFactor}`;
   vScoreMult.textContent = `×${applied.scoreMultiplier}`;
 
-  engine = createEngine(app, applied.effectiveSpec, applied.bonusLives, applied.scoreMultiplier, onState, hiveFeed, postFeed, showPostToast);
+  engine = createEngine(app, applied.effectiveSpec, applied.bonusLives, applied.scoreMultiplier, onState, hiveFeed, postFeed, showPostToast, resolveCosmetics());
   engine.mount();
 
   setOverlay(autostart ? "none" : "start"); // show "▶ Start" over the ready scene
@@ -433,6 +481,11 @@ function onState(s: EngineState) {
     const done = recordRun({ score: s.score, level: s.level, surviveSec: s.elapsed / 1000, postCoins: postCoinsThisRun });
     for (const label of done) showToast(`🎯 Quest complete: ${label}`);
     renderQuests(); // reflect updated progress (not just completions)
+    // progression: award XP, surface level-ups + newly-unlocked cosmetics
+    const prog = applyRun({ score: s.score, level: s.level, postCoins: postCoinsThisRun, streak: getStreak() });
+    if (prog.leveledUp) showToast(`⭐ Level ${prog.newLevel}!`);
+    for (const c of prog.newlyUnlocked) showToast(`🎁 Unlocked: ${c.name}`);
+    renderWardrobe();
     setOverlay("playagain");
     updatePauseBtn();
     updatePostBtn();

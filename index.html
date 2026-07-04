@@ -99,6 +99,30 @@
       .quest.done .qfill { background: #2ecc71; }
       .quest .qnum { color: #9a9ab0; min-width: 46px; text-align: right; font-variant-numeric: tabular-nums; }
       #quests-note { margin-top: 8px; }
+      /* wardrobe — collapsible cosmetics locker */
+      #wardrobe { width: min(460px, 94vw); background: #14141f; border: 1px solid #262633; border-radius: 10px; font-size: 12px; }
+      #wardrobe .contest-head b { color: #d9b6ff; }
+      #wardrobe-level { font-weight: 800; color: #ffd76a; }
+      #wardrobe-caret { color: #7a7a92; transition: transform .15s; }
+      #wardrobe.open #wardrobe-caret { transform: rotate(90deg); }
+      #wardrobe-body { display: none; padding: 6px 10px 10px; }
+      #wardrobe.open #wardrobe-body { display: block; }
+      #wardrobe-xpbar { height: 6px; background: #23233a; border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
+      #wardrobe-xpfill { display: block; height: 100%; background: #b98cff; width: 0; }
+      #wardrobe-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+      .wtab { background: #23232f; color: #b6b6c8; border: 1px solid #33334a; border-radius: 999px; padding: 4px 12px; font-size: 11px; font-weight: 700; cursor: pointer; }
+      .wtab.active { background: #3a2a55; color: #e6d6ff; border-color: #6b4a9a; }
+      #wardrobe-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+      .witem { width: calc(50% - 3px); box-sizing: border-box; background: #1b1b28; border: 1px solid #2a2a3a; border-left-width: 3px; border-radius: 8px; padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
+      .witem .wname { font-weight: 700; color: #e8e8f0; }
+      .witem .wmeta { font-size: 10px; color: #8a8aa0; }
+      .witem.locked { opacity: .55; cursor: default; }
+      .witem.equipped { background: #14301f; }
+      .witem.equipped .wmeta { color: #8dff9e; }
+      .witem.common { border-left-color: #7a7a92; }
+      .witem.rare { border-left-color: #4aa3ff; }
+      .witem.epic { border-left-color: #b98cff; }
+      .witem.legendary { border-left-color: #ffd23f; }
     </style>
   </head>
   <body>
@@ -143,6 +167,20 @@
         <div id="quests-body">
           <ul id="quests-list"></ul>
           <div id="quests-note" class="muted"></div>
+        </div>
+      </div>
+      <div id="wardrobe">
+        <div class="contest-head" id="wardrobe-toggle">
+          <span>👕 <b>Wardrobe</b></span>
+          <span id="wardrobe-level">Lv 1</span>
+          <span class="grow"></span>
+          <span id="wardrobe-xp" class="muted"></span>
+          <span id="wardrobe-caret">▸</span>
+        </div>
+        <div id="wardrobe-body">
+          <div id="wardrobe-xpbar"><span id="wardrobe-xpfill"></span></div>
+          <div id="wardrobe-tabs"></div>
+          <div id="wardrobe-grid"></div>
         </div>
       </div>
       <div id="contest">

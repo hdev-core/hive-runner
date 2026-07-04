@@ -12,6 +12,7 @@ import { attachAvatar } from "./avatar.ts";
 import { makeHiveLogo } from "./hiveLogo.ts";
 import type { HiveFeed, BlockInfo } from "../hive/HiveFeed.ts";
 import type { PostFeed, HivePost } from "../hive/PostFeed.ts";
+import type { CosmeticRender } from "../cosmetics/progression.ts";
 
 interface Obstacle {
   gfx: Graphics;
@@ -28,6 +29,13 @@ interface Billboard { node: Container; vx: number; w: number; }
 
 const GRAVITY = 1.0;
 const HIVE_RED = 0xe31337;
+
+const DEFAULT_COS: CosmeticRender = {
+  skin: { body: 0x2a3255, accent: HIVE_RED, skinTone: 0xf1cba2, visor: 0x74e0ff },
+  parcel: { box: 0xcaa46a, twine: 0x8a6a3a },
+  trail: null,
+  theme: "city run",
+};
 
 // pointy-top hexagon points (the Hive motif), centered at (cx,cy)
 function hexPts(cx: number, cy: number, r: number): number[] {
@@ -48,6 +56,8 @@ export class RunnerEngine {
   private hud = new Container();
   private obstacles: Obstacle[] = [];
   private billboards: Billboard[] = [];
+  private trail: { gfx: Graphics; life: number; max: number; vx: number; vy: number }[] = [];
+  private trailAcc = 0;
   private billboardTimer = 1200;   // ms until the next post-billboard drifts in
   private postCoinTimer = 4200;    // ms until the next collectible post-coin
   private spawnTimers = new Map<string, number>();
@@ -97,6 +107,7 @@ export class RunnerEngine {
     private hiveFeed?: HiveFeed,
     private postFeed?: PostFeed,
     private onPost?: (post: HivePost) => void, // fired when a post-coin is collected
+    private cos: CosmeticRender = DEFAULT_COS, // equipped cosmetics (skin/parcel/trail/theme)
   ) {
     this.onState = onState;
     const avatarDef = spec.entities.find((e) => e.role === "avatar");
@@ -119,7 +130,7 @@ export class RunnerEngine {
 
   mount() {
     const { app, spec } = this;
-    this.background = new Background(spec);
+    this.background = new Background(spec, this.cos.theme);
     app.stage.addChild(this.background.container, this.bg, this.scene, this.layer, this.avatar, this.hud);
 
     this.drawRunner();
@@ -177,6 +188,7 @@ export class RunnerEngine {
     this.background.update(dt, this.currentScrollSpeed());
     this.drawGround();
     this.moveBillboards(f); // post scenery scrolls whether playing or draining
+    this.trailTick(dt, f);  // equipped cosmetic trail
 
     if (this.phase === "play") {
       this.spawnTick(dt);
@@ -293,6 +305,33 @@ export class RunnerEngine {
     node.alpha = 0.94;
     this.scene.addChild(node);
     this.billboards.push({ node, vx: -this.currentScrollSpeed(), w: W });
+  }
+
+  // Equipped cosmetic trail: emit little fading particles from behind the runner.
+  private trailTick(dt: number, f: number) {
+    const t = this.cos.trail;
+    if (t) {
+      this.trailAcc += dt;
+      if (this.trailAcc >= 45) {
+        this.trailAcc = 0;
+        const g = new Graphics();
+        const jit = (Math.random() - 0.5) * this.sy * 0.4;
+        if (t.kind === "hex") g.poly(hexPts(0, 0, 4)).stroke({ width: 1.5, color: t.color, alpha: 0.9 });
+        else if (t.kind === "coin") g.circle(0, 0, 3.2).fill(t.color).circle(0, 0, 3.2).stroke({ width: 1, color: 0x8a5a10, alpha: 0.8 });
+        else g.circle(0, 0, 2.6).fill(t.color);
+        g.position.set(this.charX - this.sx * 0.36, this.charY + this.sy * 0.15 + jit);
+        this.layer.addChildAt(g, 0); // behind obstacles/runner
+        this.trail.push({ gfx: g, life: 480, max: 480, vx: -this.currentScrollSpeed() * 0.6, vy: -0.2 - Math.random() * 0.3 });
+      }
+    }
+    for (let i = this.trail.length - 1; i >= 0; i--) {
+      const p = this.trail[i];
+      p.life -= dt;
+      p.gfx.position.x += p.vx * f;
+      p.gfx.position.y += p.vy * f;
+      p.gfx.alpha = Math.max(0, p.life / p.max);
+      if (p.life <= 0) { p.gfx.destroy(); this.trail.splice(i, 1); }
+    }
   }
 
   private moveBillboards(f: number) {
@@ -529,20 +568,22 @@ export class RunnerEngine {
     const g = this.avatar;
     g.clear();
     const W = this.sx, H = this.sy, ox = -W / 2, oy = -H / 2;
-    const NAVY = 0x2a3255, SKIN = 0xf1cba2, VISOR = 0x74e0ff, OUT = 0x0b0e1c, KRAFT = 0xcaa46a;
+    // equipped skin/parcel palette (cosmetic-only)
+    const NAVY = this.cos.skin.body, ACCENT = this.cos.skin.accent, SKIN = this.cos.skin.skinTone, VISOR = this.cos.skin.visor;
+    const OUT = 0x0b0e1c;
     const airborne = !this.grounded;
     const bob = Math.sin(this.state.elapsed / 90) * (H * 0.01); // subtle parcel bob
 
     // courier parcel on the back (drawn behind the torso) — the Hive logo sits on it (mount child)
     const px = ox + W * 0.02, py = oy + H * 0.24 + bob, pw = W * 0.36, ph = H * 0.36;
-    g.roundRect(px, py, pw, ph, 3).fill(KRAFT).stroke({ width: 2, color: OUT, alpha: 0.75 });
-    g.rect(px, py + ph * 0.44, pw, 2.5).fill({ color: 0x8a6a3a, alpha: 0.85 });         // twine (h)
-    g.rect(px + pw * 0.5 - 1, py, 2.5, ph).fill({ color: 0x8a6a3a, alpha: 0.85 });        // twine (v)
+    g.roundRect(px, py, pw, ph, 3).fill(this.cos.parcel.box).stroke({ width: 2, color: OUT, alpha: 0.75 });
+    g.rect(px, py + ph * 0.44, pw, 2.5).fill({ color: this.cos.parcel.twine, alpha: 0.85 });   // twine (h)
+    g.rect(px + pw * 0.5 - 1, py, 2.5, ph).fill({ color: this.cos.parcel.twine, alpha: 0.85 }); // twine (v)
 
     // legs + Hive-red shoes
     const leg = (x: number, yTop: number, len: number) => {
       g.roundRect(x, oy + yTop, W * 0.17, len, 3).fill(NAVY).stroke({ width: 1.5, color: OUT, alpha: 0.55 });
-      g.roundRect(x - 1, oy + yTop + len - 2, W * 0.24, H * 0.07, 2).fill(HIVE_RED).stroke({ width: 1, color: OUT, alpha: 0.5 });
+      g.roundRect(x - 1, oy + yTop + len - 2, W * 0.24, H * 0.07, 2).fill(ACCENT).stroke({ width: 1, color: OUT, alpha: 0.5 });
     };
     if (airborne) { leg(ox + W * 0.30, H * 0.62, H * 0.22); leg(ox + W * 0.54, H * 0.58, H * 0.22); }
     else if (this.runPhase === 0) { leg(ox + W * 0.22, H * 0.66, H * 0.28); leg(ox + W * 0.56, H * 0.70, H * 0.22); }
@@ -550,7 +591,7 @@ export class RunnerEngine {
 
     // torso (jacket) with a Hive-red sash
     g.roundRect(ox + W * 0.26, oy + H * 0.32, W * 0.50, H * 0.42, 6).fill(NAVY).stroke({ width: 2, color: OUT, alpha: 0.7 });
-    g.roundRect(ox + W * 0.42, oy + H * 0.34, W * 0.10, H * 0.38, 3).fill(HIVE_RED);
+    g.roundRect(ox + W * 0.42, oy + H * 0.34, W * 0.10, H * 0.38, 3).fill(ACCENT);
     // shoulder strap holding the parcel, crossing the chest
     g.moveTo(ox + W * 0.34, oy + H * 0.34).lineTo(ox + W * 0.66, oy + H * 0.66).stroke({ width: W * 0.08, color: 0x171b30, cap: "round" });
 
@@ -562,7 +603,7 @@ export class RunnerEngine {
     // head: skin + Hive-red cap + cyan visor (facing right)
     const hx = W * 0.08, hy = oy + H * 0.18, hr = W * 0.25;
     g.circle(hx, hy, hr).fill(SKIN).stroke({ width: 2, color: OUT, alpha: 0.6 });
-    g.roundRect(hx - hr - 1, hy - hr * 0.95, hr * 2 + 2, hr * 0.95, 4).fill(HIVE_RED).stroke({ width: 1.5, color: OUT, alpha: 0.6 });
+    g.roundRect(hx - hr - 1, hy - hr * 0.95, hr * 2 + 2, hr * 0.95, 4).fill(ACCENT).stroke({ width: 1.5, color: OUT, alpha: 0.6 });
     g.roundRect(hx - hr * 0.35, hy - hr * 0.12, hr * 1.35, hr * 0.5, 3).fill(VISOR).stroke({ width: 1, color: OUT, alpha: 0.5 });
   }
 
@@ -652,6 +693,7 @@ export class RunnerEngine {
     this.obstacles = [];
     for (const b of this.billboards) b.node.destroy();
     this.billboards = [];
+    this.trail = []; // particle gfx are children of `layer`, destroyed below
     this.banner?.destroy();
     this.overlay?.destroy();
     this.background?.destroy();
