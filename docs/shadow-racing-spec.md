@@ -3,7 +3,8 @@
 How the "race your Hive friends" feature should work. Replaces the current DOM race strip with
 **in-world ghost runners driven by real scores**. Research-backed (see §6).
 
-> Status: **planning**. No code yet — this doc is the plan.
+> Status: **P0 shipped** (§5). The DOM strip is retired; rivals now render in-world as
+> real-score ghosts. Remaining phases (P1 replay ghosts, P2 shareable/community) still planned.
 
 ---
 
@@ -91,9 +92,12 @@ This also fixes the current "fake pace" problem: **no real score → no ghost.**
 
 ## 5. Phasing
 
-- **P0 — In-world pace ghosts (real scores).** Move the race into the Pixi scene per §3. Ghosts =
-  personal best + the leaderboard-rival-above. Retire the DOM strip (or demote it to a thin optional
-  minimap). ~1 day; no new data sources.
+- **P0 ✅ SHIPPED — In-world pace ghosts (real scores).** Race moved into the Pixi scene per §3.
+  Ghosts = **personal best** (green) + the **leaderboard rival one rank above you** (blue) + the
+  **top-scoring member of the selected Team pool** who's on the board (gold ⭐). Nearest target first,
+  capped at 3; a neutral "Goal" line stands in only when a player has *no* real target yet. DOM strip
+  retired (`src/race/RaceStrip.ts` deleted). Rendered by `RunnerEngine` (`buildGhosts`/`updateGhosts`,
+  `RaceGhost`); targets assembled in `main.ts` `computeGhosts()`.
 - **P1 — True replay ghost.** Record your best run's **vertical-position timeline** (sample `charY`
   every ~50 ms → a compact array in localStorage). Replay it as a ghost that reproduces your *actual
   jumps*. Because obstacles are procedural, pair this with a **seeded obstacle field** so a replay
@@ -129,12 +133,11 @@ the rival just above you.
 
 ## 7. Open decisions
 
-1. **P0 scope:** ship in-world ghosts with *personal-best + leaderboard-rival* only, or also include
-   follows/community best from the start?
-2. **Keep or kill the DOM strip:** remove it entirely once ghosts are in-world, or keep a slim
-   minimap version for the "field at a glance" view?
-3. **Time-trial mode:** is a **seeded/daily obstacle field** (needed for honest replay ghosts, P1)
-   worth adding as its own mode alongside the endless mode?
+1. ~~**P0 scope**~~ — **decided:** personal-best + leaderboard-rival + Team-pool leader (keeps the
+   Team dropdown meaningful, honestly — only members with real scores appear).
+2. ~~**Keep or kill the DOM strip**~~ — **decided:** killed; ghosts are fully in-world.
+3. **Time-trial mode (P1):** is a **seeded/daily obstacle field** (needed for honest replay ghosts)
+   worth adding as its own mode alongside the endless mode? *(still open)*
 
 [udonis]: https://www.blog.udonis.co/mobile-marketing/mobile-games/social-features-mobile-games
 [segwise]: https://segwise.ai/blog/boost-mobile-game-retention-strategies

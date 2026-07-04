@@ -4,16 +4,16 @@ import { runnerDash } from "./specs/runnerDash.ts";
 import { makeActivity, type ActivityInputs } from "./activity/mockActivity.ts";
 import { applyHooks } from "./runtime/hooks.ts";
 import { createEngine, type ArchetypeEngine } from "./runtime/createEngine.ts";
+import type { RaceGhost } from "./runtime/RunnerEngine.ts";
 import type { EngineState } from "./runtime/FallingEngine.ts";
 import { HiveFeed } from "./hive/HiveFeed.ts";
 import { PostFeed, type HivePost } from "./hive/PostFeed.ts";
 import { getGhosts, getCommunities, getCommunityRacers } from "./hive/HiveSocial.ts";
 import { postScore, login, hasKeychain } from "./hive/HiveAuth.ts";
 import { getEnergyInputs } from "./hive/HiveEnergy.ts";
-import { RaceStrip } from "./race/RaceStrip.ts";
 import { CONTEST, weekId, msUntilWeekEnd, formatCountdown, type LeaderboardFile } from "./contest.ts";
 import { markPlayed, recordRun, getStreak, getQuests, getDailyBonusLives } from "./daily.ts";
-import { resolveCosmetics, applyRun, getLevelInfo, ownedIds, getEquipped, equip } from "./cosmetics/progression.ts";
+import { resolveCosmetics, applyRun, getLevelInfo, ownedIds, getEquipped, equip, getMilestones } from "./cosmetics/progression.ts";
 import { byType, byId, unlockLabel, TYPES, type CosmeticType } from "./cosmetics/catalog.ts";
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -68,7 +68,6 @@ const energyEl = $("energy");
 const hiveStatus = $("hive-status");
 const teamRow = $("team-row");
 const toast = $("toast");
-const race = new RaceStrip($("race-strip"), 300);
 
 // --- weekly sponsored contest: leaderboard card (read-only, fed by the indexer) --------
 const contestEl = $("contest");
@@ -217,7 +216,6 @@ let realEnergy: ActivityInputs | null = null; // live on-chain energy inputs whe
 let postCoinsThisRun = 0; // for the "collect N post-coins" daily quest
 let lastScore = 0;
 let lastGameOver = false;
-let lastRaceMs = -1;
 let started = false;   // has the current run begun?
 let paused = false;
 let overlayMode: "start" | "resume" | "playagain" | "none" = "none";
@@ -277,23 +275,52 @@ function togglePause() {
   updatePauseBtn();
 }
 
-// shared race overtake / finish feedback (used by both the follows-race and community-race)
+// In-world ghost racing: you chase REAL scores rendered as translucent runners on the track —
+// your personal best + the leaderboard rival one rank above you, plus (when a Team is picked)
+// the top-scoring member of that pool who's on the weekly board. Overtakes fire these toasts.
 const FOLLOWS_OPT = "__follows__";
-const onRacePass = (name: string) => showToast(`🏁 Passed @${name}!`);
-const onRaceFinish = () => showToast("🏆 You beat the pack to the line!");
+const onGhostPass = (label: string) => showToast(`🏁 Passed ${label}!`);
+const onRaceWon = () => showToast("🏆 You beat every rival's score!");
+let teamMembers: string[] = []; // accounts in the selected Team pool (follows or a community)
+
+// Assemble up to 3 real-score ghosts to chase, nearest target first. No real score → no ghost.
+function computeGhosts(): RaceGhost[] {
+  const out: RaceGhost[] = [];
+  const seen = new Set<string>();
+  const add = (g: RaceGhost) => { if (!seen.has(g.id)) { seen.add(g.id); out.push(g); } };
+
+  const best = getMilestones().bestScore;
+  if (best > 0) add({ id: "pb", label: "Your best", avatar: hiveAccount || "null", score: best, color: 0x8dff9e });
+
+  const rows = leaderboard?.contests?.[weekId()] ?? [];
+  if (rows.length) {
+    // the rival one rank above you (or the lowest entry, if you're not yet on the board / a guest)
+    const idx = hiveAccount ? rows.findIndex((r) => r.account === hiveAccount) : -1;
+    const rival = idx > 0 ? rows[idx - 1] : rows[rows.length - 1];
+    if (rival && rival.account !== hiveAccount) add({ id: "lb:" + rival.account, label: "@" + rival.account, avatar: rival.account, score: rival.score, color: 0x5a9bff });
+    // the top-scoring member of the selected Team pool (the Team dropdown's real effect)
+    if (teamMembers.length) {
+      const top = rows.find((r) => teamMembers.includes(r.account) && r.account !== hiveAccount);
+      if (top) add({ id: "lb:" + top.account, label: "@" + top.account + " ⭐", avatar: top.account, score: top.score, color: 0xffcf3f });
+    }
+  }
+  // first-timer with no real targets yet: a neutral goal line (not a fabricated person)
+  if (!out.length) add({ id: "goal", label: "Goal", avatar: "null", score: 250, color: 0x9fd3ff });
+
+  return out.sort((a, b) => a.score - b.score).slice(0, 3);
+}
 
 async function loadHive(user: string) {
   if (!user) return;
   hiveStatus.textContent = "loading…";
   try {
-    const ghosts = await getGhosts(user, 6);
-    race.setGhosts(ghosts, onRacePass, onRaceFinish);
-    race.setPlayerAvatar(user);
+    const follows = await getGhosts(user, 6);
+    teamMembers = follows.map((g) => g.name); // default Team pool = accounts you follow
     postFeed.setAccount(user); // billboards + post-coins now surface posts from accounts you follow
     hiveAccount = user;
     const comms = await getCommunities(user);
     communitySelect.innerHTML = "";
-    // first option keeps the default "race your follows"; picking a community swaps the field
+    // first option keeps the default pool (your follows); picking a community swaps the pool
     const followOpt = document.createElement("option");
     followOpt.value = FOLLOWS_OPT; followOpt.textContent = "My follows";
     communitySelect.appendChild(followOpt);
@@ -303,7 +330,7 @@ async function loadHive(user: string) {
       communitySelect.appendChild(o);
     }
     teamRow.style.display = "inline-flex";
-    hiveStatus.textContent = ghosts.length ? `@${user} · racing ${ghosts.length} rivals` : `@${user} · (no follows to race)`;
+    hiveStatus.textContent = `@${user} · racing your best + rivals`;
     localStorage.setItem("hiverunner_account", user); // persist session
     logoutBtn.style.display = "inline-block";
     renderContest(); // highlight the player's row / standing now that we know who they are
@@ -314,20 +341,19 @@ async function loadHive(user: string) {
   }
 }
 
-// Switching the Team dropdown swaps the racers: "My follows" → accounts you follow;
+// Switching the Team dropdown swaps the rival pool: "My follows" → accounts you follow;
 // a community → that community's recent active posters. Posting still targets the community.
+// The pool's top-scoring member (if on the board) becomes a ghost you race next run.
 async function switchTeam() {
   if (!hiveAccount) return;
   const val = communitySelect.value;
   const label = val === FOLLOWS_OPT ? "your follows" : (communitySelect.options[communitySelect.selectedIndex]?.text ?? val);
   hiveStatus.textContent = `loading ${label}…`;
   try {
-    const ghosts = val === FOLLOWS_OPT ? await getGhosts(hiveAccount, 6) : await getCommunityRacers(val, 6);
-    race.setGhosts(ghosts, onRacePass, onRaceFinish);
-    race.setPlayerAvatar(hiveAccount);
-    hiveStatus.textContent = ghosts.length
-      ? `@${hiveAccount} · racing ${ghosts.length} from ${label}`
-      : `@${hiveAccount} · no racers in ${label}`;
+    const pool = val === FOLLOWS_OPT ? await getGhosts(hiveAccount, 6) : await getCommunityRacers(val, 6);
+    teamMembers = pool.map((g) => g.name);
+    hiveStatus.textContent = `@${hiveAccount} · rivals from ${label}`;
+    if (!started || lastGameOver) start(false); // refresh the ready-scene ghosts to the new pool
   } catch {
     hiveStatus.textContent = `couldn't load ${label}`;
   }
@@ -454,10 +480,7 @@ function start(autostart = false) {
   engine?.destroy();
   app.stage.removeChildren();
 
-  // reset the race for the new run
-  race.reset();
   lastGameOver = false;
-  lastRaceMs = -1;
   paused = false;
   started = autostart;
   postCoinsThisRun = 0;
@@ -490,7 +513,7 @@ function start(autostart = false) {
   vBasket.textContent = `×${applied.basketWidthFactor}`;
   vScoreMult.textContent = `×${applied.scoreMultiplier}`;
 
-  engine = createEngine(app, applied.effectiveSpec, applied.bonusLives, applied.scoreMultiplier, onState, hiveFeed, postFeed, showPostToast, resolveCosmetics());
+  engine = createEngine(app, applied.effectiveSpec, applied.bonusLives, applied.scoreMultiplier, onState, hiveFeed, postFeed, showPostToast, resolveCosmetics(), computeGhosts(), onGhostPass, onRaceWon);
   engine.mount();
 
   setOverlay(autostart ? "none" : "start"); // show "▶ Start" over the ready scene
@@ -498,7 +521,6 @@ function start(autostart = false) {
 }
 
 function onState(s: EngineState) {
-  if (s.over || s.elapsed - lastRaceMs >= 100) { race.update(s.score, s.elapsed); lastRaceMs = s.elapsed; }
   if (s.over && !lastGameOver) {
     lastGameOver = true;
     lastScore = s.score;

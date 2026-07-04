@@ -5,7 +5,7 @@
 import type { Application } from "pixi.js";
 import type { GameSpec } from "../types/spec.ts";
 import { FallingEngine, type EngineState } from "./FallingEngine.ts";
-import { RunnerEngine } from "./RunnerEngine.ts";
+import { RunnerEngine, type RaceGhost } from "./RunnerEngine.ts";
 import type { HiveFeed } from "../hive/HiveFeed.ts";
 import type { PostFeed, HivePost } from "../hive/PostFeed.ts";
 import type { CosmeticRender } from "../cosmetics/progression.ts";
@@ -26,13 +26,16 @@ export function createEngine(
   postFeed?: PostFeed,
   onPost?: (post: HivePost) => void,
   cosmetics?: CosmeticRender,
+  ghosts?: RaceGhost[],
+  onGhostPass?: (label: string) => void,
+  onRaceWon?: () => void,
 ): ArchetypeEngine {
   switch (spec.meta.archetype) {
     case "catcher":
     case "dodger":
       return new FallingEngine(app, spec, bonusLives, scoreMultiplier, onState, hiveFeed);
     case "runner":
-      return new RunnerEngine(app, spec, bonusLives, scoreMultiplier, onState, hiveFeed, postFeed, onPost, cosmetics);
+      return new RunnerEngine(app, spec, bonusLives, scoreMultiplier, onState, hiveFeed, postFeed, onPost, cosmetics, ghosts ?? [], onGhostPass, onRaceWon);
     default:
       throw new Error(`archetype "${spec.meta.archetype}" not implemented yet`);
   }

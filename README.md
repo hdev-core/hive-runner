@@ -55,10 +55,13 @@ scheduled GitHub Action that indexes scores. No gambling — every reward is ski
   toast** that opens the post on peakd (the game auto-pauses so you don't die while reading).
 
 ### 🏁 Social & competition
-- **Ghost racers** — a DOM race strip pits **YOU** against the accounts you follow; each rival's pace is
-  derived from their real Hive activity. Overtake toasts fire as you pass them; first to the finish
-  (score 300) gets a celebration.
-- **Community teams** — pick one of your subscribed communities to represent when you post a score.
+- **In-world ghost racers** — translucent rival runners race **on the track beside you**, driven by
+  **real scores**: your **personal best** (green), the **leaderboard rival one rank above you** (blue),
+  and the **top scorer of your selected Team pool** (gold ⭐). Each ghost sits ahead by its score and
+  drifts back as you climb; pass it and an overtake toast fires. No real score → no ghost (a neutral
+  "Goal" line stands in only for brand-new players). Design + phases: [docs/shadow-racing-spec.md](docs/shadow-racing-spec.md).
+- **Community teams** — the **Team** dropdown picks the rival pool (your follows, or a community's
+  active members) *and* the community you post your score to.
 
 ### 🏆 Weekly contest (on-chain leaderboard)
 - Posting a score writes a **signed `custom_json`** to Hive; a scheduled indexer aggregates all scores
@@ -87,7 +90,7 @@ scheduled GitHub Action that indexes scores. No gambling — every reward is ski
 ## How it works
 
 The architecture is a clean split: **Hive is the live data source**, a **deterministic Pixi engine** is
-the game, and the **DOM is just the shell** (HUD, buttons, race strip, contest card).
+the game (ghost racers included), and the **DOM is just the shell** (HUD, buttons, cards, toasts).
 
 ```
                  read-only public Hive nodes (JSON-RPC)
@@ -163,10 +166,9 @@ src/
   hive/
     HiveFeed.ts           live head-block poller + op parser
     PostFeed.ts           real-post stream (firehose / your feed) for billboards + post-coins
-    HiveSocial.ts         follows → ghost racers; communities → teams
+    HiveSocial.ts         follows / community members → rival pool; communities → teams
     HiveEnergy.ts         real energy reads (RC/mana, 24h ops, Actifit steps)
     HiveAuth.ts           Keychain login + score custom_json
-  race/RaceStrip.ts       DOM race vs the accounts you follow
   contest.ts              contest config + ISO-week/countdown helpers
 indexer/
   index.mjs               block-streaming score indexer (runs in CI)

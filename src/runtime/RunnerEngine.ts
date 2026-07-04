@@ -27,6 +27,11 @@ interface Obstacle {
 
 interface Billboard { node: Container; vx: number; w: number; }
 
+// A ghost racer target: a REAL score to chase (your personal best, or a leaderboard rival).
+// Rendered in-world as a translucent runner whose position tracks your score vs their score.
+export interface RaceGhost { id: string; label: string; avatar: string; score: number; color?: number; }
+interface GhostRunner { def: RaceGhost; node: Container; passed: boolean; offsetY: number; phase: number; }
+
 const GRAVITY = 1.0;
 const HIVE_RED = 0xe31337;
 
@@ -56,6 +61,10 @@ export class RunnerEngine {
   private hud = new Container();
   private obstacles: Obstacle[] = [];
   private billboards: Billboard[] = [];
+  private ghostLayer = new Container();  // in-world ghost racers (behind obstacles + player)
+  private ghosts: GhostRunner[] = [];
+  private ghostDefs: RaceGhost[];
+  private raceWonFired = false;
   private trail: { gfx: Graphics; life: number; max: number; vx: number; vy: number }[] = [];
   private trailAcc = 0;
   private billboardTimer = 1200;   // ms until the next post-billboard drifts in
@@ -108,8 +117,12 @@ export class RunnerEngine {
     private postFeed?: PostFeed,
     private onPost?: (post: HivePost) => void, // fired when a post-coin is collected
     private cos: CosmeticRender = DEFAULT_COS, // equipped cosmetics (skin/parcel/trail/theme)
+    ghosts: RaceGhost[] = [],                  // real-score rivals to race in-world
+    private onGhostPass?: (label: string) => void,
+    private onRaceWon?: () => void,
   ) {
     this.onState = onState;
+    this.ghostDefs = ghosts;
     const avatarDef = spec.entities.find((e) => e.role === "avatar");
     const base = avatarDef?.width ?? 42;
     this.sx = base;
@@ -131,8 +144,9 @@ export class RunnerEngine {
   mount() {
     const { app, spec } = this;
     this.background = new Background(spec, this.cos.theme);
-    app.stage.addChild(this.background.container, this.bg, this.scene, this.layer, this.avatar, this.hud);
+    app.stage.addChild(this.background.container, this.bg, this.scene, this.ghostLayer, this.layer, this.avatar, this.hud);
 
+    this.buildGhosts();
     this.drawRunner();
     this.avatar.position.set(this.charX, this.charY);
     // Hive logo on the courier parcel — a persistent child (survives the per-frame redraw),
@@ -185,6 +199,7 @@ export class RunnerEngine {
     this.applyDifficultyRamp();
     this.physics(f);
     this.animateRun(dt, f);
+    this.updateGhosts();
     this.background.update(dt, this.currentScrollSpeed());
     this.drawGround();
     this.moveBillboards(f); // post scenery scrolls whether playing or draining
@@ -341,6 +356,55 @@ export class RunnerEngine {
       b.node.position.x += -this.currentScrollSpeed() * f;
       if (b.node.position.x + b.w < -20) { b.node.destroy({ children: true }); this.billboards.splice(i, 1); }
     }
+  }
+
+  // --- in-world ghost racers -------------------------------------------------
+
+  // Build a translucent runner + avatar + score label for each real-score rival.
+  private buildGhosts() {
+    const gw = this.sx * 0.92, gh = this.sy * 0.92;
+    this.ghostDefs.forEach((def, i) => {
+      const color = def.color ?? 0x9fd3ff;
+      const node = new Container();
+      const body = new Graphics();
+      drawGhostRunner(body, gw, gh, color);
+      const av = new Graphics().circle(0, 0, 13).fill(0x1a2036).circle(0, 0, 13).stroke({ width: 2, color, alpha: 0.85 });
+      av.position.set(0, -gh * 0.95);
+      attachAvatar(av, def.avatar, 13);
+      const label = new Text({
+        text: `${def.label} · ${def.score}`,
+        style: { fontFamily: "system-ui", fontSize: 10, fontWeight: "700", fill: color, stroke: { color: 0x081426, width: 3 } },
+      });
+      label.anchor.set(0.5, 0); label.position.set(0, -gh * 0.95 + 15);
+      node.addChild(body, av, label);
+      this.ghostLayer.addChild(node);
+      this.ghosts.push({ def, node, passed: false, offsetY: -i * 15, phase: i * 1.7 });
+    });
+    this.updateGhosts(); // place them for the ready scene (score 0 → all out ahead)
+  }
+
+  // Position by real score: a ghost sits far ahead when you trail its score and drifts back to
+  // you as you climb; when your score passes theirs it slides off to the left (an overtake).
+  private updateGhosts() {
+    if (!this.ghosts.length) return;
+    const laneStart = this.charX;
+    const laneEnd = this.spec.world.width - 70;
+    for (const g of this.ghosts) {
+      const ratio = g.def.score > 0 ? this.state.score / g.def.score : 2;
+      const clamped = Math.min(1.3, Math.max(0, ratio));
+      g.node.position.x = laneStart + (1 - clamped) * (laneEnd - laneStart);
+      g.node.position.y = this.groundCenterY + g.offsetY + Math.sin(this.state.elapsed / 160 + g.phase) * 3;
+      if (!g.passed && ratio >= 1) {
+        g.passed = true;
+        this.onGhostPass?.(g.def.label);
+        this.checkRaceWon();
+      }
+    }
+  }
+
+  private checkRaceWon() {
+    if (this.raceWonFired || !this.ghosts.length) return;
+    if (this.ghosts.every((g) => g.passed)) { this.raceWonFired = true; this.onRaceWon?.(); }
   }
 
   // A collectible coin carrying a real post — grab it for points and a peek at the post.
@@ -693,12 +757,14 @@ export class RunnerEngine {
     this.obstacles = [];
     for (const b of this.billboards) b.node.destroy();
     this.billboards = [];
+    this.ghosts = []; // ghost nodes are children of ghostLayer, destroyed below
     this.trail = []; // particle gfx are children of `layer`, destroyed below
     this.banner?.destroy();
     this.overlay?.destroy();
     this.background?.destroy();
     this.bg.destroy();
     this.scene.destroy({ children: true });
+    this.ghostLayer.destroy({ children: true });
     this.layer.destroy({ children: true });
     this.avatar.destroy();
     this.hud.destroy({ children: true });
@@ -716,6 +782,16 @@ function drawBlock(g: Graphics, w: number, h: number) {
   g.roundRect(x, y, w, h, 3).fill(0x272f56).stroke({ width: 2, color: 0x0b0e1c, alpha: 0.85 });    // front face
   g.rect(x + 1, y + 1, w - 2, 3).fill({ color: HIVE_RED, alpha: 0.85 });                           // lit top edge
   g.poly(hexPts(0, 2, 8)).stroke({ width: 1.5, color: 0x6fd3ff, alpha: 0.75 });                    // hex glyph
+}
+
+// A translucent "ghost" runner silhouette (a rival's pace marker) with a soft aura.
+function drawGhostRunner(g: Graphics, W: number, H: number, color: number) {
+  const ox = -W / 2, oy = -H / 2;
+  g.roundRect(ox + W * 0.22, oy + H * 0.06, W * 0.56, H * 0.92, 10).fill({ color, alpha: 0.12 }); // aura
+  g.roundRect(ox + W * 0.30, oy + H * 0.70, W * 0.16, H * 0.28, 3).fill({ color, alpha: 0.42 });  // back leg
+  g.roundRect(ox + W * 0.54, oy + H * 0.70, W * 0.16, H * 0.28, 3).fill({ color, alpha: 0.42 });  // front leg
+  g.roundRect(ox + W * 0.28, oy + H * 0.30, W * 0.44, H * 0.44, 6).fill({ color, alpha: 0.5 });   // torso
+  g.circle(ox + W * 0.5, oy + H * 0.18, W * 0.2).fill({ color, alpha: 0.6 });                     // head
 }
 
 // A pickup drawn as a glossy gold coin; the Hive logo is added as a child (see spawnObstacle).
