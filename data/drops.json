@@ -1,0 +1,25 @@
+{
+  "_comment": "Prize-drop config for in-game giveaways. See docs/giveaways-spec.md. Edit freely — the client fetches this (raw GitHub, no redeploy). Set enabled:true and a real, funded poolAccount to go live.",
+  "enabled": false,
+  "poolAccount": "hive-runner-pool",
+  "dropBaseRatePerSec": 0.004,
+  "perUserCap": 1,
+  "cooldownHours": 24,
+  "eligibility": {
+    "requireLogin": true,
+    "minScore": 100,
+    "weightByActivity": true
+  },
+  "prizes": [
+    { "symbol": "AFIT",   "kind": "he",   "amount": 10,  "precision": 8, "weight": 16, "maxPerDay": 200 },
+    { "symbol": "SPORTS", "kind": "he",   "amount": 250, "precision": 3, "weight": 14, "maxPerDay": 300 },
+    { "symbol": "DEC",    "kind": "he",   "amount": 25,  "precision": 3, "weight": 14, "maxPerDay": 300 },
+    { "symbol": "PIZZA",  "kind": "he",   "amount": 0.5, "precision": 2, "weight": 8,  "maxPerDay": 60 },
+    { "symbol": "SPS",    "kind": "he",   "amount": 2,   "precision": 8, "weight": 8,  "maxPerDay": 80 },
+    { "symbol": "POB",    "kind": "he",   "amount": 3,   "precision": 8, "weight": 6,  "maxPerDay": 60 },
+    { "symbol": "CTP",    "kind": "he",   "amount": 3,   "precision": 3, "weight": 6,  "maxPerDay": 60 },
+    { "symbol": "LEO",    "kind": "he",   "amount": 0.25,"precision": 3, "weight": 6,  "maxPerDay": 40 },
+    { "symbol": "HIVE",   "kind": "hive", "amount": 0.02,"precision": 3, "weight": 6,  "maxPerDay": 30 },
+    { "symbol": "BEE",    "kind": "he",   "amount": 0.1, "precision": 8, "weight": 4,  "maxPerDay": 20 }
+  ]
+}

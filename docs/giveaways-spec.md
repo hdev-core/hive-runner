@@ -169,10 +169,43 @@ Result: frequent, fun crates; real payouts that are fair, capped, budget-safe, a
 
 ---
 
-## 10. Decisions needed from you
+## 10. Decisions (resolved 2026-07-04)
 
-1. **Payout automation:** manual first (P0) → scheduled runner (A) → always-on backend (B)?
-2. **Where the signer runs:** GitHub Action secret (low-balance) / your own VPS-cron / serverless?
-3. **Prize tokens & budget:** which tokens (HIVE, AFIT, SPORTS, …), daily budget, prize table + caps?
-4. **Pool account handle** + who funds it initially?
-5. **Confirm** the free-giveaway (non-gambling) framing is acceptable.
+1. **Payout automation:** ✅ **Manual first (P0)** — build crates + claims + a winners list; pay by hand.
+   Automate with the scheduled runner (Option A) later.
+2. **Signer host (when automating):** ✅ **Your own VPS / cron** (safer than a CI secret).
+3. **Prize tokens:** ✅ **HIVE + well-used Hive-Engine tokens**, small amounts. Verified live on
+   Hive-Engine and encoded in [`data/drops.json`](../data/drops.json):
+
+   | Token | Kind | Prec | Why |
+   |---|---|---|---|
+   | AFIT | HE | 8 | Actifit — your own ecosystem |
+   | SPORTS | HE | 3 | SportsTalkSocial (requested) |
+   | DEC | HE | 3 | Splinterlands currency — huge user base |
+   | PIZZA | HE | 2 | Active tipping community |
+   | SPS | HE | 8 | Splinterlands governance |
+   | POB | HE | 8 | Proof of Brain |
+   | CTP | HE | 3 | ClickTrackProfit |
+   | LEO | HE | 3 | LeoFinance — very active |
+   | HIVE | native | 3 | Universally valued |
+   | BEE | HE | 8 | Hive-Engine native token |
+
+   Amounts are deliberately **small** (each ≈ a few cents or less) to avoid financial load; per-token
+   `maxPerDay` caps bound the spend. Prize weights favour cheaper/common tokens; valuable ones are rarer.
+4. **Pool account:** ⏳ **you to create + fund** a dedicated hot-wallet account (config default:
+   `hive-runner-pool`) — kept low-balance, topped up manually. Set `poolAccount` + `enabled:true` in
+   `data/drops.json` to go live.
+5. **Non-gambling framing:** ⏳ please confirm you're comfortable it reads as a **free giveaway** (no
+   stake, no loss) — the design depends on it.
+
+## 11. P0 build plan (manual payout)
+
+- **`data/drops.json`** ✅ — config (pool account, prize table, rates, caps, kill-switch).
+- **Client — prize crate:** a rare, eligibility-gated crate spawns during a run; grabbing it posts a
+  **claim** `custom_json` (Keychain) and shows "🎁 Claim submitted — winners paid manually."
+- **Client — pool display:** reads the pool account's HIVE + HE balances → "🎁 Prize pool: …" + a
+  crate legend; hidden/"configuring" until `enabled` + a funded pool.
+- **Indexer — claim log:** extend `indexer/index.mjs` to also collect `action:"claim"` ops into
+  `data/claims.json` (account, block, ts, game) — your worklist for manual payouts.
+- **You:** create/fund `hive-runner-pool`, then pay eligible claimants from `claims.json` per the prize
+  table + caps (respecting `perUserCap`/`cooldownHours`). P1 automates this draw + payout.
