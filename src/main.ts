@@ -14,6 +14,7 @@ import { postScore, login, hasKeychain } from "./hive/HiveAuth.ts";
 import { getEnergyInputs } from "./hive/HiveEnergy.ts";
 import { RaceStrip } from "./race/RaceStrip.ts";
 import { CONTEST, weekId, msUntilWeekEnd, formatCountdown, type LeaderboardFile } from "./contest.ts";
+import { markPlayed, recordRun, getStreak, getQuests, getDailyBonusLives } from "./daily.ts";
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -129,8 +130,43 @@ tickCountdown();
 setInterval(tickCountdown, 30000);
 void loadLeaderboard();
 
+// --- daily streaks + quests -------------------------------------------------
+const questsEl = $("quests");
+const streakChip = $("streak-chip");
+const questsCountEl = $("quests-count");
+const questsListEl = $("quests-list") as HTMLUListElement;
+const questsNote = $("quests-note");
+$("quests-toggle").addEventListener("click", () => questsEl.classList.toggle("open"));
+
+function renderQuests() {
+  const streak = getStreak();
+  streakChip.textContent = `🔥 ${streak}`;
+  streakChip.title = `${streak}-day streak`;
+  const quests = getQuests();
+  const done = quests.filter((q) => q.done).length;
+  questsCountEl.textContent = `${done}/${quests.length}`;
+  questsListEl.innerHTML = "";
+  for (const q of quests) {
+    const li = document.createElement("li");
+    li.className = "quest" + (q.done ? " done" : "");
+    const pct = Math.round((q.progress / q.target) * 100);
+    li.innerHTML =
+      `<span class="qx">${q.done ? "✅" : "◻️"}</span>` +
+      `<span class="qlabel">${q.label}</span>` +
+      `<span class="qbar"><span class="qfill" style="width:${pct}%"></span></span>` +
+      `<span class="qnum">${Math.min(q.progress, q.target)}/${q.target}</span>`;
+    questsListEl.appendChild(li);
+  }
+  const bonus = getDailyBonusLives();
+  questsNote.textContent = bonus > 0
+    ? `Streak + quests give you +${bonus} bonus ${bonus === 1 ? "life" : "lives"} each run 🎁`
+    : "Keep a daily streak and finish quests to earn bonus lives.";
+}
+renderQuests();
+
 let hiveAccount = "";
 let realEnergy: ActivityInputs | null = null; // live on-chain energy inputs when logged in
+let postCoinsThisRun = 0; // for the "collect N post-coins" daily quest
 let lastScore = 0;
 let lastGameOver = false;
 let lastRaceMs = -1;
@@ -149,6 +185,7 @@ function showToast(msg: string) {
 const postToast = $("post-toast") as HTMLAnchorElement;
 let postToastTimer: number | undefined;
 function showPostToast(post: HivePost) {
+  postCoinsThisRun++; // a post-coin was just collected (drives a daily quest)
   postToast.href = post.permlink
     ? `https://peakd.com/@${post.author}/${post.permlink}`
     : `https://peakd.com/@${post.author}`;
@@ -179,7 +216,11 @@ function updatePauseBtn() {
   pauseBtn.disabled = !started || lastGameOver;
   pauseBtn.textContent = paused ? "▶ Resume" : "⏸ Pause";
 }
-function beginPlay() { started = true; paused = false; setOverlay("none"); updatePauseBtn(); }
+function beginPlay() {
+  started = true; paused = false; setOverlay("none"); updatePauseBtn();
+  const { streak, increased } = markPlayed(); // count today's play toward the streak
+  if (increased) { showToast(`🔥 ${streak}-day streak!`); renderQuests(); }
+}
 function resumePlay() { paused = false; setOverlay("none"); updatePauseBtn(); }
 function togglePause() {
   if (!started || lastGameOver) return;
@@ -316,6 +357,7 @@ async function boot() {
     $("panel").style.display = "block";
     $("app").style.height = "auto"; // let the page scroll to reach the dev panel
     contestEl.classList.add("open"); // show the contest card expanded while developing
+    questsEl.classList.add("open");
   }
 
   // Pixi's RAF loop; the engine only advances when a run is started and not paused
@@ -345,6 +387,7 @@ function start(autostart = false) {
   lastRaceMs = -1;
   paused = false;
   started = autostart;
+  postCoinsThisRun = 0;
   updatePostBtn();
 
   $("game-title").textContent = currentSpec.meta.title;
@@ -362,6 +405,7 @@ function start(autostart = false) {
   };
   const activity = makeActivity(inputs);
   const applied = applyHooks(currentSpec, activity);
+  applied.bonusLives += getDailyBonusLives(); // streak + completed-quest bonus lives
 
   // update the live debug panel
   const b = activity.breakdown;
@@ -385,6 +429,10 @@ function onState(s: EngineState) {
   if (s.over && !lastGameOver) {
     lastGameOver = true;
     lastScore = s.score;
+    // advance daily quests with this run's results
+    const done = recordRun({ score: s.score, level: s.level, surviveSec: s.elapsed / 1000, postCoins: postCoinsThisRun });
+    for (const label of done) showToast(`🎯 Quest complete: ${label}`);
+    renderQuests(); // reflect updated progress (not just completions)
     setOverlay("playagain");
     updatePauseBtn();
     updatePostBtn();
