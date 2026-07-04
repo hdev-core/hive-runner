@@ -13,7 +13,12 @@ export type Unlock =
 
 export interface SkinParams { body: number; accent: number; skinTone: number; visor: number; }
 export interface ParcelParams { box: number; twine: number; }
-export interface TrailParams { color: number; kind: "spark" | "coin" | "hex" | "ring" | "star" | "bubble"; }
+export type TrailKind =
+  | "spark" | "ember" | "coin" | "ring" | "flame" | "hex"
+  | "comet" | "confetti" | "smoke" | "bolt" | "petal" | "prism";
+// Each kind has its own motion/behaviour (emit rate, gravity, spin, growth) baked into the engine;
+// `color` tints it and `colors` supplies a palette for the multi-colour kinds (confetti / prism / flame).
+export interface TrailParams { color: number; kind: TrailKind; colors?: number[]; }
 
 export interface Cosmetic {
   id: string;
@@ -86,26 +91,32 @@ export const CATALOG: Cosmetic[] = [
   { id: "parcel_diamond", type: "parcel", name: "Diamond Case", rarity: "legendary", unlock: { kind: "milestone", stat: "maxLevel", value: 12 },
     parcel: { box: 0xbff0ff, twine: 0x5a9bff } },
 
-  // --- trails (particles behind the runner) --- {color, kind}
+  // --- trails (particles behind the runner) --- each `kind` has a distinct motion (see RunnerEngine)
   { id: "trail_none", type: "trail", name: "No Trail", rarity: "common", unlock: { kind: "start" }, trail: null },
   { id: "trail_spark", type: "trail", name: "Spark Trail", rarity: "rare", unlock: { kind: "level", level: 4 },
-    trail: { color: 0xffcf3f, kind: "spark" } },
+    trail: { color: 0xffcf3f, kind: "spark" } },                                  // quick fading sparks
   { id: "trail_ember", type: "trail", name: "Ember Trail", rarity: "rare", unlock: { kind: "level", level: 6 },
-    trail: { color: 0xff5a2a, kind: "spark" } },
+    trail: { color: 0xff7a3a, kind: "ember" } },                                  // embers that float UP + flicker
   { id: "trail_coin", type: "trail", name: "Coin Trail", rarity: "epic", unlock: { kind: "level", level: 7 },
-    trail: { color: 0xffd23f, kind: "coin" } },
-  { id: "trail_ring", type: "trail", name: "Ripple Trail", rarity: "rare", unlock: { kind: "level", level: 9 },
-    trail: { color: 0x9fd3ff, kind: "ring" } },
-  { id: "trail_hex", type: "trail", name: "Honeycomb Trail", rarity: "epic", unlock: { kind: "level", level: 10 },
-    trail: { color: 0xe31337, kind: "hex" } },
-  { id: "trail_cyanhex", type: "trail", name: "Cyber Hex", rarity: "epic", unlock: { kind: "level", level: 12 },
-    trail: { color: 0x6fd3ff, kind: "hex" } },
-  { id: "trail_star", type: "trail", name: "Stardust Trail", rarity: "epic", unlock: { kind: "level", level: 14 },
-    trail: { color: 0xffe27a, kind: "star" } },
-  { id: "trail_bubble", type: "trail", name: "Bubble Trail", rarity: "rare", unlock: { kind: "level", level: 17 },
-    trail: { color: 0x8fdfff, kind: "bubble" } },
+    trail: { color: 0xffd23f, kind: "coin" } },                                   // coins that pop up then FALL + spin
+  { id: "trail_ripple", type: "trail", name: "Ripple Trail", rarity: "rare", unlock: { kind: "level", level: 9 },
+    trail: { color: 0x9fd3ff, kind: "ring" } },                                   // expanding rings
+  { id: "trail_flame", type: "trail", name: "Flame Trail", rarity: "epic", unlock: { kind: "level", level: 10 },
+    trail: { color: 0xff5a2a, kind: "flame", colors: [0xff2a12, 0xff7a2a, 0xffcf3f] } }, // rising fire blobs
+  { id: "trail_hex", type: "trail", name: "Honeycomb Trail", rarity: "epic", unlock: { kind: "level", level: 12 },
+    trail: { color: 0xe31337, kind: "hex" } },                                    // slow-spinning Hive hexes
+  { id: "trail_comet", type: "trail", name: "Comet Trail", rarity: "epic", unlock: { kind: "level", level: 14 },
+    trail: { color: 0x6fd3ff, kind: "comet" } },                                  // bright glowing streak
+  { id: "trail_confetti", type: "trail", name: "Confetti Trail", rarity: "epic", unlock: { kind: "level", level: 16 },
+    trail: { color: 0xffffff, kind: "confetti", colors: [0xff5a5a, 0x5a9bff, 0xffd23f, 0x6cff8a, 0xc86bff] } }, // multi-colour burst that falls
+  { id: "trail_smoke", type: "trail", name: "Vapor Trail", rarity: "rare", unlock: { kind: "level", level: 18 },
+    trail: { color: 0x9aa0b0, kind: "smoke" } },                                  // expanding grey puffs
+  { id: "trail_bolt", type: "trail", name: "Electric Trail", rarity: "epic", unlock: { kind: "level", level: 20 },
+    trail: { color: 0x8fe6ff, kind: "bolt" } },                                   // jagged lightning flickers
+  { id: "trail_petal", type: "trail", name: "Sakura Petals", rarity: "epic", unlock: { kind: "milestone", stat: "totalRuns", value: 50 },
+    trail: { color: 0xffb6d5, kind: "petal" } },                                  // petals that flutter down
   { id: "trail_prism", type: "trail", name: "Prismatic Trail", rarity: "legendary", unlock: { kind: "milestone", stat: "bestScore", value: 2000 },
-    trail: { color: 0xff5ad0, kind: "star" } },
+    trail: { color: 0xff5ad0, kind: "prism", colors: [0xff5a5a, 0xffb03a, 0xffe23a, 0x6cff8a, 0x5ad0ff, 0xc86bff] } }, // rainbow burst
 
   // --- world themes (Background) --- theme key routes to a sky palette + decor
   { id: "theme_city", type: "theme", name: "On-Chain City", rarity: "common", unlock: { kind: "start" }, theme: "city run" },

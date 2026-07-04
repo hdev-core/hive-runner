@@ -112,8 +112,9 @@ needs indexer work. Start local, migrate the *ledger of ownership* on-chain when
 - **P0 ✅ SHIPPED: earn-and-equip core.** XP + levels (localStorage) + a deep catalog (**16 skins, 11
   parcels, 10 trails, 10 themes** = 47 items) unlocked by **level (up to L20) / milestone**, a Wardrobe
   UI (scrollable grid), and in-game rendering of the equipped set (skin palette, parcel colors, trail
-  particles incl. spark/coin/hex/ring/star/bubble kinds, and 10 world themes each with its own sky
-  palette). Pure progression unlocks (no coin shop yet). `src/cosmetics/{catalog,progression}.ts`.
+  particles — 12 behaviour kinds: spark, ember (rises), coin (falls+spins), ripple (expands), flame,
+  hex, comet (streak), confetti (multi-colour burst), vapor, bolt (lightning), petals, prism (rainbow)
+  — and 10 world themes each with its own sky palette). `src/cosmetics/{catalog,progression}.ts`.
 - **P1 (~2–3 days): the shop + depth.** Soft-currency shop (earn coins → buy), rarity tiers, more catalog,
   seasonal/contest cosmetic rewards, sponsor/community skins.
 - **P2 (later): on-chain + NFTs.** Portable on-chain progression; tradable Hive-Engine NFT cosmetics;

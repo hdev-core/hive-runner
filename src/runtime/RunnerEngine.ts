@@ -13,6 +13,7 @@ import { makeHiveLogo } from "./hiveLogo.ts";
 import type { HiveFeed, BlockInfo } from "../hive/HiveFeed.ts";
 import type { PostFeed, HivePost } from "../hive/PostFeed.ts";
 import type { CosmeticRender } from "../cosmetics/progression.ts";
+import type { TrailParams } from "../cosmetics/catalog.ts";
 
 interface Obstacle {
   gfx: Graphics;
@@ -53,16 +54,11 @@ function hexPts(cx: number, cy: number, r: number): number[] {
   return p;
 }
 
-// 5-point star points centered at (cx,cy): outer radius rO, inner radius rI
-function starPts(cx: number, cy: number, rO: number, rI: number): number[] {
-  const p: number[] = [];
-  for (let i = 0; i < 10; i++) {
-    const r = i % 2 === 0 ? rO : rI;
-    const a = (Math.PI / 5) * i - Math.PI / 2;
-    p.push(cx + r * Math.cos(a), cy + r * Math.sin(a));
-  }
-  return p;
-}
+// per-kind emit cadence (ms between emissions) — denser for fine effects, sparser for heavy ones
+const TRAIL_RATE: Record<string, number> = {
+  spark: 42, ember: 48, coin: 120, ring: 120, flame: 36, hex: 80,
+  comet: 26, confetti: 95, smoke: 68, bolt: 55, petal: 150, prism: 55,
+};
 
 export class RunnerEngine {
   private background!: Background;
@@ -77,7 +73,7 @@ export class RunnerEngine {
   private ghosts: GhostRunner[] = [];
   private ghostDefs: RaceGhost[];
   private raceWonFired = false;
-  private trail: { gfx: Graphics; life: number; max: number; vx: number; vy: number }[] = [];
+  private trail: { gfx: Graphics; life: number; max: number; vx: number; vy: number; grav: number; spin: number; grow: number; baseAlpha: number }[] = [];
   private trailAcc = 0;
   private billboardTimer = 1200;   // ms until the next post-billboard drifts in
   private postCoinTimer = 4200;    // ms until the next collectible post-coin
@@ -338,33 +334,122 @@ export class RunnerEngine {
     this.billboards.push({ node, vx: -this.currentScrollSpeed(), w: W });
   }
 
-  // Equipped cosmetic trail: emit little fading particles from behind the runner.
+  // Equipped cosmetic trail: emit particles from behind the runner. Each kind has its own emit
+  // cadence and per-particle motion (gravity, spin, growth), so trails feel genuinely different.
   private trailTick(dt: number, f: number) {
     const t = this.cos.trail;
     if (t) {
       this.trailAcc += dt;
-      if (this.trailAcc >= 45) {
-        this.trailAcc = 0;
-        const g = new Graphics();
-        const jit = (Math.random() - 0.5) * this.sy * 0.4;
-        if (t.kind === "hex") g.poly(hexPts(0, 0, 4)).stroke({ width: 1.5, color: t.color, alpha: 0.9 });
-        else if (t.kind === "coin") g.circle(0, 0, 3.2).fill(t.color).circle(0, 0, 3.2).stroke({ width: 1, color: 0x8a5a10, alpha: 0.8 });
-        else if (t.kind === "ring") g.circle(0, 0, 3.6).stroke({ width: 1.5, color: t.color, alpha: 0.9 });
-        else if (t.kind === "star") g.poly(starPts(0, 0, 4.2, 2)).fill({ color: t.color, alpha: 0.95 });
-        else if (t.kind === "bubble") g.circle(0, 0, 3.2).fill({ color: t.color, alpha: 0.32 }).circle(0, 0, 3.2).stroke({ width: 1, color: t.color, alpha: 0.9 });
-        else g.circle(0, 0, 2.6).fill(t.color);
-        g.position.set(this.charX - this.sx * 0.36, this.charY + this.sy * 0.15 + jit);
-        this.layer.addChildAt(g, 0); // behind obstacles/runner
-        this.trail.push({ gfx: g, life: 480, max: 480, vx: -this.currentScrollSpeed() * 0.6, vy: -0.2 - Math.random() * 0.3 });
-      }
+      const rate = TRAIL_RATE[t.kind] ?? 45;
+      if (this.trailAcc >= rate) { this.trailAcc = 0; this.emitTrail(t); }
     }
     for (let i = this.trail.length - 1; i >= 0; i--) {
       const p = this.trail[i];
       p.life -= dt;
+      p.vy += p.grav * f;
       p.gfx.position.x += p.vx * f;
       p.gfx.position.y += p.vy * f;
-      p.gfx.alpha = Math.max(0, p.life / p.max);
+      if (p.spin) p.gfx.rotation += p.spin * f;
+      if (p.grow !== 1) { const s = Math.pow(p.grow, f); p.gfx.scale.set(p.gfx.scale.x * s, p.gfx.scale.y * s); }
+      p.gfx.alpha = Math.max(0, (p.life / p.max) * p.baseAlpha);
       if (p.life <= 0) { p.gfx.destroy(); this.trail.splice(i, 1); }
+    }
+  }
+
+  // Spawn one emission of the given trail (may be several particles for burst kinds).
+  private emitTrail(t: TrailParams) {
+    const bx = this.charX - this.sx * 0.36;
+    const by = this.charY + this.sy * 0.15;
+    const scroll = this.currentScrollSpeed();
+    const rnd = () => Math.random() - 0.5;
+    // push a particle: pos = base + (dx,dy), with motion + look opts
+    const add = (
+      gfx: Graphics, vx: number, vy: number, life: number,
+      o: { dx?: number; dy?: number; grav?: number; spin?: number; grow?: number; alpha?: number; rot?: number } = {},
+    ) => {
+      gfx.position.set(bx + (o.dx ?? 0), by + (o.dy ?? 0));
+      if (o.rot) gfx.rotation = o.rot;
+      this.layer.addChildAt(gfx, 0); // behind obstacles + runner
+      this.trail.push({ gfx, life, max: life, vx, vy, grav: o.grav ?? 0, spin: o.spin ?? 0, grow: o.grow ?? 1, baseAlpha: o.alpha ?? 1 });
+    };
+    const pick = (arr?: number[], fb = t.color) => (arr && arr.length ? arr[Math.floor(Math.random() * arr.length)] : fb);
+
+    switch (t.kind) {
+      case "ember": { // small motes that drift UP and flicker warm
+        const c = Math.random() < 0.5 ? t.color : 0xffc060;
+        add(new Graphics().circle(0, 0, 1.6 + Math.random() * 1.5).fill(c),
+          -scroll * 0.4 + rnd() * 0.7, -0.6 - Math.random() * 0.7, 520,
+          { grav: 0.006, dy: rnd() * this.sy * 0.3, alpha: 0.6 + Math.random() * 0.4 });
+        break;
+      }
+      case "coin": { // pops up, then falls under gravity while spinning
+        const g = new Graphics().circle(0, 0, 3.4).fill(t.color).circle(0, 0, 3.4).stroke({ width: 1, color: 0x8a5a10, alpha: 0.8 });
+        g.circle(-1.1, -1.1, 1.3).fill({ color: 0xffffff, alpha: 0.4 });
+        add(g, -scroll * 0.5, -0.7 - Math.random() * 0.4, 720, { grav: 0.08, spin: 0.12, dy: -this.sy * 0.05 });
+        break;
+      }
+      case "ring": { // rings that expand and fade
+        add(new Graphics().circle(0, 0, 3).stroke({ width: 1.6, color: t.color, alpha: 0.9 }),
+          -scroll * 0.45, 0, 520, { grow: 1.045, dy: rnd() * this.sy * 0.3, alpha: 0.9 });
+        break;
+      }
+      case "flame": { // overlapping warm blobs that rise and shrink → a lick of fire
+        for (let k = 0; k < 2; k++)
+          add(new Graphics().circle(0, 0, 3 + Math.random() * 3).fill({ color: pick(t.colors), alpha: 0.75 }),
+            -scroll * 0.3 + rnd() * 0.9, -0.9 - Math.random() * 0.6, 340,
+            { grow: 0.965, dy: rnd() * this.sy * 0.25, alpha: 0.85 });
+        break;
+      }
+      case "hex": { // slow-spinning Hive hexes
+        add(new Graphics().poly(hexPts(0, 0, 4)).stroke({ width: 1.5, color: t.color, alpha: 0.9 }),
+          -scroll * 0.55, -0.1, 520, { spin: 0.05, dy: rnd() * this.sy * 0.35 });
+        break;
+      }
+      case "comet": { // bright core + soft glow, streaking fast backward
+        const g = new Graphics().circle(0, 0, 5.2).fill({ color: t.color, alpha: 0.3 }).circle(0, 0, 3).fill({ color: 0xffffff, alpha: 0.95 });
+        add(g, -scroll * 0.95, -0.04, 680, { dy: rnd() * this.sy * 0.12, grow: 0.99 });
+        break;
+      }
+      case "confetti": { // a burst of colour chips that tumble and fall
+        for (let k = 0; k < 3; k++) {
+          const g = new Graphics().rect(-2, -1.3, 4, 2.6).fill(pick(t.colors));
+          add(g, -scroll * 0.5 + rnd() * 1.3, -0.9 - Math.random() * 0.5, 720,
+            { grav: 0.07, spin: rnd() * 0.35, dy: rnd() * this.sy * 0.2, rot: Math.random() * Math.PI });
+        }
+        break;
+      }
+      case "smoke": { // expanding, slowly rising grey puffs
+        add(new Graphics().circle(0, 0, 4 + Math.random() * 2).fill({ color: t.color, alpha: 0.22 }),
+          -scroll * 0.5, -0.3, 780, { grow: 1.03, dy: rnd() * this.sy * 0.2, alpha: 0.9 });
+        break;
+      }
+      case "bolt": { // short jagged lightning flickers
+        const g = new Graphics();
+        g.moveTo(0, 0);
+        let x = 0;
+        for (let s = 0; s < 4; s++) { x += 2 + Math.random() * 2.5; g.lineTo(x, rnd() * 7); }
+        g.stroke({ width: 1.4, color: t.color, alpha: 0.95 });
+        add(g, -scroll * 0.6, rnd() * 0.4, 190, { dy: rnd() * this.sy * 0.4 });
+        break;
+      }
+      case "petal": { // petals that flutter down and rotate
+        const g = new Graphics().ellipse(0, 0, 3.2, 1.7).fill({ color: t.color, alpha: 0.85 });
+        add(g, -scroll * 0.5 + rnd() * 0.9, 0.25 + Math.random() * 0.3, 900,
+          { grav: 0.004, spin: rnd() * 0.07, dy: -this.sy * 0.1, rot: Math.random() * Math.PI });
+        break;
+      }
+      case "prism": { // a small rainbow burst with glow
+        for (let k = 0; k < 2; k++) {
+          const c = (t.colors ?? [t.color])[(this.trail.length + k) % (t.colors?.length ?? 1)];
+          add(new Graphics().circle(0, 0, 4.4).fill({ color: c, alpha: 0.25 }).circle(0, 0, 2.7).fill(c),
+            -scroll * 0.6 + rnd() * 0.9, -0.3 - Math.random() * 0.5, 520, { dy: rnd() * this.sy * 0.3 });
+        }
+        break;
+      }
+      default: { // "spark" — quick fading motes
+        add(new Graphics().circle(0, 0, 2.6).fill(t.color),
+          -scroll * 0.6, -0.2 - Math.random() * 0.3, 460, { dy: rnd() * this.sy * 0.4 });
+      }
     }
   }
 
