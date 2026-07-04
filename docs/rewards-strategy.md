@@ -144,8 +144,28 @@ Keep it **small and capped** — if the weekly pot becomes "income," mercenary d
 a buy-in. Anti-farm + non-gambling: min score, login-gated, per-account caps, activity weighting;
 **participation is earned by playing, never purchased.**
 
-Candidate split (to pick from later): e.g. **50% raffle / 30% top-N / 20% streak+team**, tuned so any one
-prize is a few cents to a small treat.
+### Recommended split
+
+Weight the pool toward **broad participation** (the retention piece), with a meaningful-but-secondary skill
+tier:
+
+| Bucket | Share | Who | Why |
+|---|---|---|---|
+| **Participation raffle** | **50%** | everyone eligible (logged in · ≥3 runs · min score), **free activity-weighted entries** | the retention engine — "I have a real shot" spreads reward to the mid-pack/casuals |
+| **Skill — top N** | **30%** | top ~8, tiered | aspiration + recognition for the best, without starving everyone else |
+| **Consistency** | **10%** | played the most days that week (streaks) | rewards daily return, the highest-value behavior |
+| **Community team** | **10%** | members of the winning team split it | recruits *communities*, adds social/tribal pull |
+
+**Worked example — a modest ~30 HIVE-equivalent weekly pool** (sponsor-funded; can be part HIVE, part HE
+tokens):
+- **Raffle (15):** ~25–30 winners of ~0.5 HIVE-eq each (or token equivalents) → many small wins.
+- **Skill (9):** top 8 tiered, e.g. `2.5 / 1.8 / 1.3 / 0.9 / 0.9 / 0.5 / 0.5 / 0.5`.
+- **Consistency (3):** split among players with ≥5 play-days that week.
+- **Team (3):** split among the winning community's eligible members.
+
+**Guardrails:** any single prize stays "a few cents → a small treat" (never income); per-account **weekly
+cap** (one skill prize + raffle eligibility); scale the whole pool up/down with sponsor funding. Start with
+**manual payout** from the leaderboard + entry list; automate later (see giveaways-spec Option A).
 
 ---
 
