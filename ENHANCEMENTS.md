@@ -26,6 +26,7 @@ games of chance for money — ever.
 | **Curation-through-play** | 💡 | At run's end, upvote the post-coins you collected (your vote, or a shared curation vote if you delegate). The game becomes a content-discovery + curation engine — authors earn, curators earn, players get a reason to collect. |
 | **Hive Engine token + cosmetic NFTs** | 💡 | Earn a tradable token / cosmetic NFTs (runner skins, parcel designs, witness cards) by hitting skill milestones; spend on cosmetics (the sink). Real market value — needs careful sink design to avoid the StepN faucet-drain trap. |
 | **Delegation-for-boosts** | 📋 | Delegate HP to the game account → in-game perks (energy / multiplier); that same HP powers the curation votes that pay players back. Gives idle stake a reason to engage. |
+| **In-game giveaways / prize drops** | 📋 | Free, sponsor-funded HIVE + Hive-Engine token (AFIT, SPORTS, …) drops that appear for random players; winners get a real on-chain transfer from a pooled account. Full design in [docs/giveaways-spec.md](./docs/giveaways-spec.md). |
 
 ## 2. Retention & engagement
 
