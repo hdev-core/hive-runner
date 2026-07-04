@@ -57,7 +57,7 @@ games of chance for money — ever.
 |---|---|---|
 | **Runner archetype + levels + activity boosts** | ✅ | Flagship. |
 | **More archetypes** | 💡 | `reaction`, `maze` engines to broaden variety (spec model already supports it). |
-| **Cosmetics / skins** | 📋 | **Promoted by research to the priority "ownable" reward layer** — cosmetics are a proven retention driver + a healthy sink (Roblox +47%, Fortnite +43% vs genre). Courier skins, parcel designs, trails, HUD themes — earned via play/points; later select ones as tradable Hive-Engine NFTs. |
+| **Cosmetics / skins** | 🔨 | **P0 shipped** — XP + levels + unlockable courier skins / parcels / trails / world themes (Wardrobe UI), all procedural, cosmetic-only. Design + phasing: [docs/cosmetics-spec.md](./docs/cosmetics-spec.md). Next: P1 coin shop + depth; P2 on-chain ownership + tradable Hive-Engine NFTs. |
 | **Difficulty modes / endless leaderboard** | 💡 | Casual vs. hardcore; a permanent all-time board alongside the weekly. |
 
 ## 5. Hive-native depth

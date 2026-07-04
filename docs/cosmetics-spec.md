@@ -109,10 +109,10 @@ needs indexer work. Start local, migrate the *ledger of ownership* on-chain when
 
 ## 8. Phased delivery
 
-- **P0 (~2–3 days): earn-and-equip core.** XP + levels + coins (localStorage) + a starter catalog
-  (~3–4 skins, ~3 parcels, ~3 trails, ~3 themes) unlocked by **level/achievement**, a Wardrobe UI, and
-  in-game rendering of the equipped set. *No shop yet — pure progression unlocks* (fastest path to the
-  retention benefit).
+- **P0 ✅ SHIPPED: earn-and-equip core.** XP + levels (localStorage) + a starter catalog (5 skins, 4
+  parcels, 4 trails, 4 themes) unlocked by **level/milestone**, a Wardrobe UI, and in-game rendering of
+  the equipped set (skin palette, parcel colors, trail particles, world theme). Pure progression unlocks
+  (no coin shop yet). `src/cosmetics/{catalog,progression}.ts`; unit-tested 13/13.
 - **P1 (~2–3 days): the shop + depth.** Soft-currency shop (earn coins → buy), rarity tiers, more catalog,
   seasonal/contest cosmetic rewards, sponsor/community skins.
 - **P2 (later): on-chain + NFTs.** Portable on-chain progression; tradable Hive-Engine NFT cosmetics;
