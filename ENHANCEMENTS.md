@@ -1,6 +1,9 @@
 # Hive Runner — Enhancements & Roadmap
 
-A living backlog of ideas for the game. See [README.md](./README.md) for what's already shipped.
+A living backlog of ideas for the game. See [README.md](./README.md) for what's already shipped, and
+**[docs/rewards-strategy.md](./docs/rewards-strategy.md)** for the research-backed reward-economy strategy
+(the verdict: intrinsic core + cosmetics for retention; monetary rewards are small, gated, sponsor-funded
+spice — **not** the hook; free random giveaways are a novelty/acquisition tactic, not a retention mechanic).
 
 **Guiding principle — "lucrative to Hive users" needs a real value _inflow_.** You can't pay players
 sustainably out of pocket. On Hive there are three real inflows, and every earning idea below maps to one:
@@ -26,7 +29,7 @@ games of chance for money — ever.
 | **Curation-through-play** | 💡 | At run's end, upvote the post-coins you collected (your vote, or a shared curation vote if you delegate). The game becomes a content-discovery + curation engine — authors earn, curators earn, players get a reason to collect. |
 | **Hive Engine token + cosmetic NFTs** | 💡 | Earn a tradable token / cosmetic NFTs (runner skins, parcel designs, witness cards) by hitting skill milestones; spend on cosmetics (the sink). Real market value — needs careful sink design to avoid the StepN faucet-drain trap. |
 | **Delegation-for-boosts** | 📋 | Delegate HP to the game account → in-game perks (energy / multiplier); that same HP powers the curation votes that pay players back. Gives idle stake a reason to engage. |
-| **In-game giveaways / prize drops** | 📋 | Free, sponsor-funded HIVE + Hive-Engine token (AFIT, SPORTS, …) drops that appear for random players; winners get a real on-chain transfer from a pooled account. Full design in [docs/giveaways-spec.md](./docs/giveaways-spec.md). |
+| **In-game giveaways / prize drops** | 💡 | **Reframed after research** — free random token drops are a novelty/Sybil-magnet, not durable retention ([rewards-strategy.md](./docs/rewards-strategy.md)). Keep as a **rare, heavily-gated seasonal** bonus; point the sponsor pool at weekly payouts first. Infra design still valid: [docs/giveaways-spec.md](./docs/giveaways-spec.md). |
 
 ## 2. Retention & engagement
 
@@ -54,7 +57,7 @@ games of chance for money — ever.
 |---|---|---|
 | **Runner archetype + levels + activity boosts** | ✅ | Flagship. |
 | **More archetypes** | 💡 | `reaction`, `maze` engines to broaden variety (spec model already supports it). |
-| **Cosmetics / skins** | 💡 | Alternate courier skins, parcel designs, trails — earned or sponsored; the sink for a token economy. |
+| **Cosmetics / skins** | 📋 | **Promoted by research to the priority "ownable" reward layer** — cosmetics are a proven retention driver + a healthy sink (Roblox +47%, Fortnite +43% vs genre). Courier skins, parcel designs, trails, HUD themes — earned via play/points; later select ones as tradable Hive-Engine NFTs. |
 | **Difficulty modes / endless leaderboard** | 💡 | Casual vs. hardcore; a permanent all-time board alongside the weekly. |
 
 ## 5. Hive-native depth
@@ -80,12 +83,16 @@ games of chance for money — ever.
 
 ---
 
-## Near-term sequence (chosen)
+## Near-term sequence (updated after the reward research)
 
-1. ✅ **Real Keychain login + energy** — the identity + on-chain-read foundation.
-2. 🔨 **Daily streaks + quests** — daily retention.
-3. 📋 **Sponsor-funded contests** — the earning engine (the money piece).
-4. 📋 **Referrals + team pots** — viral growth.
-5. 📋 **Delegation-for-boosts** — engage idle HP.
+1. ✅ **Real Keychain login + energy** — identity + on-chain-read foundation.
+2. ✅ **Daily streaks + quests** — daily retention (intrinsic core).
+3. **➡ Cosmetics & progression** — the durable *ownable* reward layer (skins/parcels/trails + XP levels).
+   Promoted ahead of giveaways by the research.
+4. **Sponsor-funded weekly payouts** — the monetary spice, broadly + tiered distributed (skill +
+   participation raffle + streak + team pots). Small, capped, sponsor-funded.
+5. **Referrals + team pots** — viral growth.
+6. **Delegation-for-boosts** — engage idle HP.
+7. *(Optional/later)* tradable NFT cosmetics; **rare, gated seasonal** token drops (not a core loop).
 
 _Add new ideas here as they come up; move rows between sections and update the status as they ship._
