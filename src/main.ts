@@ -1,7 +1,5 @@
 import { Application } from "pixi.js";
 import type { GameSpec } from "./types/spec.ts";
-import { fruitRush } from "./specs/fruitRush.ts";
-import { meteorDodge } from "./specs/meteorDodge.ts";
 import { runnerDash } from "./specs/runnerDash.ts";
 import { makeActivity, type ActivityInputs } from "./activity/mockActivity.ts";
 import { applyHooks } from "./runtime/hooks.ts";
@@ -20,15 +18,13 @@ import { byType, byId, unlockLabel, TYPES, type CosmeticType } from "./cosmetics
 
 const $ = (id: string) => document.getElementById(id)!;
 
-const SPECS: Record<string, GameSpec> = { fruitRush, meteorDodge, runnerDash };
-let currentSpec: GameSpec = runnerDash; // flagship game opens by default
+const currentSpec: GameSpec = runnerDash; // single flagship game
 
 // --- DOM refs ---------------------------------------------------------------
 const host = $("stage-host");
 const manaSlider = $("mana-slider") as HTMLInputElement;
 const opsSlider = $("ops-slider") as HTMLInputElement;
 const stepsSlider = $("steps-slider") as HTMLInputElement;
-const gameSelect = $("game-select") as HTMLSelectElement;
 const vBlock = $("v-block");
 const vOps = $("v-ops");
 
@@ -418,11 +414,6 @@ async function boot() {
 
   $("apply-btn").addEventListener("click", () => start(true));
   $("restart-btn").addEventListener("click", () => start(true));
-  gameSelect.addEventListener("change", () => {
-    currentSpec = SPECS[gameSelect.value] ?? fruitRush;
-    start(true);
-  });
-
   const qp = new URLSearchParams(location.search);
   // dev: force-equip cosmetics for preview/sharing, e.g. ?equip=skin_sky,theme_neon (owned only)
   const eq = qp.get("equip");
