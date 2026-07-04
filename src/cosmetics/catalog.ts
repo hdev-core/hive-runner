@@ -31,6 +31,8 @@ export const CATALOG: Cosmetic[] = [
   // --- skins (courier palettes) ---
   { id: "skin_default", type: "skin", name: "Hive Courier", rarity: "common", unlock: { kind: "start" },
     skin: { body: 0x2a3255, accent: 0xe31337, skinTone: 0xf1cba2, visor: 0x74e0ff } },
+  { id: "skin_sky", type: "skin", name: "Sky Courier", rarity: "common", unlock: { kind: "start" },
+    skin: { body: 0x1c4a7a, accent: 0x38b0e0, skinTone: 0xf1cba2, visor: 0xaef0ff } },
   { id: "skin_actifit", type: "skin", name: "Actifit Runner", rarity: "rare", unlock: { kind: "level", level: 3 },
     skin: { body: 0x1f6a3f, accent: 0x3aa66a, skinTone: 0xf1cba2, visor: 0xaaf0c0 } },
   { id: "skin_whale", type: "skin", name: "Whale Courier", rarity: "epic", unlock: { kind: "level", level: 6 },

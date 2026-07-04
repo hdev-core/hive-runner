@@ -16,7 +16,7 @@ import { RaceStrip } from "./race/RaceStrip.ts";
 import { CONTEST, weekId, msUntilWeekEnd, formatCountdown, type LeaderboardFile } from "./contest.ts";
 import { markPlayed, recordRun, getStreak, getQuests, getDailyBonusLives } from "./daily.ts";
 import { resolveCosmetics, applyRun, getLevelInfo, ownedIds, getEquipped, equip } from "./cosmetics/progression.ts";
-import { byType, unlockLabel, TYPES, type CosmeticType } from "./cosmetics/catalog.ts";
+import { byType, byId, unlockLabel, TYPES, type CosmeticType } from "./cosmetics/catalog.ts";
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -159,13 +159,18 @@ function renderWardrobe() {
     const d = document.createElement("div");
     d.className = `witem ${c.rarity}${isEq ? " equipped" : ""}${isOwned ? "" : " locked"}`;
     d.innerHTML = `<span class="wname">${c.name}</span><span class="wmeta">${isEq ? "✓ equipped" : isOwned ? "tap to equip" : "🔒 " + unlockLabel(c.unlock)}</span>`;
-    if (isOwned && !isEq) d.onclick = () => {
-      if (equip(wardrobeTab, c.id)) {
+    if (!isOwned) {
+      d.onclick = () => showToast(`🔒 ${c.name} — unlock: ${unlockLabel(c.unlock)}`); // explain why nothing changed
+    } else if (!isEq) {
+      d.onclick = () => {
+        if (!equip(wardrobeTab, c.id)) return;
         renderWardrobe();
-        showToast(`Equipped ${c.name}`);
-        if (!started && !lastGameOver) start(false); // refresh the ready-scene preview
-      }
-    };
+        // apply immediately when not mid-run (ready OR game-over → rebuild the preview);
+        // mid-run it takes effect on the next run
+        if (!started || lastGameOver) { start(false); showToast(`Equipped ${c.name}`); }
+        else showToast(`Equipped ${c.name} — applies next run`);
+      };
+    }
     wardrobeGrid.appendChild(d);
   }
 }
@@ -418,8 +423,11 @@ async function boot() {
     start(true);
   });
 
-  start(false); // set up the flagship game in a "ready" state — press Start to play
   const qp = new URLSearchParams(location.search);
+  // dev: force-equip cosmetics for preview/sharing, e.g. ?equip=skin_sky,theme_neon (owned only)
+  const eq = qp.get("equip");
+  if (eq) for (const id of eq.split(",")) { const c = byId(id.trim()); if (c) equip(c.type, c.id); }
+  start(false); // set up the flagship game in a "ready" state — press Start to play
   if (qp.get("play") === "1") beginPlay(); // dev: skip the Start overlay
   if (qp.get("pt") === "1") showPostToast({ author: "yalloveme", permlink: "sample", title: "NOT EVERY CROWN BELONGS TO A KING", community: "Hive" }); // dev: preview the post toast
 }
