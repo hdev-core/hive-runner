@@ -16,9 +16,29 @@ export interface ParcelParams { box: number; twine: number; }
 export type TrailKind =
   | "spark" | "ember" | "coin" | "ring" | "flame" | "hex"
   | "comet" | "confetti" | "smoke" | "bolt" | "petal" | "prism";
+// A small gameplay effect a trail grants — but ONLY in Free-play mode. Contest/ranked runs ignore
+// perks entirely, so the weekly leaderboard stays a pure skill contest (cosmetics never pay-to-win).
+export type TrailPerk =
+  | { kind: "scoreBonus"; value: number }   // +value% to all score gained
+  | { kind: "coinBonus"; value: number }    // +value% to pickup (coin) values
+  | { kind: "magnet"; radius: number }      // pickups within radius drift toward you
+  | { kind: "shield"; cooldownMs: number }  // blocks one hit, then recharges over cooldownMs
+  | { kind: "heartBoost"; factor: number }; // heart pickups appear (factor×) more often
 // Each kind has its own motion/behaviour (emit rate, gravity, spin, growth) baked into the engine;
 // `color` tints it and `colors` supplies a palette for the multi-colour kinds (confetti / prism / flame).
-export interface TrailParams { color: number; kind: TrailKind; colors?: number[]; }
+export interface TrailParams { color: number; kind: TrailKind; colors?: number[]; perk?: TrailPerk; }
+
+/** Short human label for a trail's Free-play perk (for the Wardrobe). */
+export function perkLabel(p?: TrailPerk): string {
+  if (!p) return "";
+  switch (p.kind) {
+    case "scoreBonus": return `+${p.value}% score`;
+    case "coinBonus": return `+${p.value}% coin value`;
+    case "magnet": return "coin magnet";
+    case "shield": return `shield · blocks a hit / ${Math.round(p.cooldownMs / 1000)}s`;
+    case "heartBoost": return "more hearts";
+  }
+}
 
 export interface Cosmetic {
   id: string;
@@ -91,32 +111,33 @@ export const CATALOG: Cosmetic[] = [
   { id: "parcel_diamond", type: "parcel", name: "Diamond Case", rarity: "legendary", unlock: { kind: "milestone", stat: "maxLevel", value: 12 },
     parcel: { box: 0xbff0ff, twine: 0x5a9bff } },
 
-  // --- trails (particles behind the runner) --- each `kind` has a distinct motion (see RunnerEngine)
+  // --- trails (particles behind the runner) --- each `kind` has a distinct motion (see RunnerEngine);
+  // `perk` is a small gameplay effect that applies ONLY in Free-play mode (contest runs ignore it).
   { id: "trail_none", type: "trail", name: "No Trail", rarity: "common", unlock: { kind: "start" }, trail: null },
   { id: "trail_spark", type: "trail", name: "Spark Trail", rarity: "rare", unlock: { kind: "level", level: 4 },
-    trail: { color: 0xffcf3f, kind: "spark" } },                                  // quick fading sparks
+    trail: { color: 0xffcf3f, kind: "spark", perk: { kind: "scoreBonus", value: 8 } } },
   { id: "trail_ember", type: "trail", name: "Ember Trail", rarity: "rare", unlock: { kind: "level", level: 6 },
-    trail: { color: 0xff7a3a, kind: "ember" } },                                  // embers that float UP + flicker
+    trail: { color: 0xff7a3a, kind: "ember", perk: { kind: "scoreBonus", value: 12 } } },
   { id: "trail_coin", type: "trail", name: "Coin Trail", rarity: "epic", unlock: { kind: "level", level: 7 },
-    trail: { color: 0xffd23f, kind: "coin" } },                                   // coins that pop up then FALL + spin
+    trail: { color: 0xffd23f, kind: "coin", perk: { kind: "coinBonus", value: 50 } } },
   { id: "trail_ripple", type: "trail", name: "Ripple Trail", rarity: "rare", unlock: { kind: "level", level: 9 },
-    trail: { color: 0x9fd3ff, kind: "ring" } },                                   // expanding rings
+    trail: { color: 0x9fd3ff, kind: "ring", perk: { kind: "magnet", radius: 95 } } },
   { id: "trail_flame", type: "trail", name: "Flame Trail", rarity: "epic", unlock: { kind: "level", level: 10 },
-    trail: { color: 0xff5a2a, kind: "flame", colors: [0xff2a12, 0xff7a2a, 0xffcf3f] } }, // rising fire blobs
+    trail: { color: 0xff5a2a, kind: "flame", colors: [0xff2a12, 0xff7a2a, 0xffcf3f], perk: { kind: "scoreBonus", value: 15 } } },
   { id: "trail_hex", type: "trail", name: "Honeycomb Trail", rarity: "epic", unlock: { kind: "level", level: 12 },
-    trail: { color: 0xe31337, kind: "hex" } },                                    // slow-spinning Hive hexes
+    trail: { color: 0xe31337, kind: "hex", perk: { kind: "coinBonus", value: 40 } } },
   { id: "trail_comet", type: "trail", name: "Comet Trail", rarity: "epic", unlock: { kind: "level", level: 14 },
-    trail: { color: 0x6fd3ff, kind: "comet" } },                                  // bright glowing streak
+    trail: { color: 0x6fd3ff, kind: "comet", perk: { kind: "magnet", radius: 135 } } },
   { id: "trail_confetti", type: "trail", name: "Confetti Trail", rarity: "epic", unlock: { kind: "level", level: 16 },
-    trail: { color: 0xffffff, kind: "confetti", colors: [0xff5a5a, 0x5a9bff, 0xffd23f, 0x6cff8a, 0xc86bff] } }, // multi-colour burst that falls
+    trail: { color: 0xffffff, kind: "confetti", colors: [0xff5a5a, 0x5a9bff, 0xffd23f, 0x6cff8a, 0xc86bff], perk: { kind: "coinBonus", value: 60 } } },
   { id: "trail_smoke", type: "trail", name: "Vapor Trail", rarity: "rare", unlock: { kind: "level", level: 18 },
-    trail: { color: 0x9aa0b0, kind: "smoke" } },                                  // expanding grey puffs
+    trail: { color: 0x9aa0b0, kind: "smoke", perk: { kind: "shield", cooldownMs: 12000 } } },
   { id: "trail_bolt", type: "trail", name: "Electric Trail", rarity: "epic", unlock: { kind: "level", level: 20 },
-    trail: { color: 0x8fe6ff, kind: "bolt" } },                                   // jagged lightning flickers
+    trail: { color: 0x8fe6ff, kind: "bolt", perk: { kind: "shield", cooldownMs: 8000 } } },
   { id: "trail_petal", type: "trail", name: "Sakura Petals", rarity: "epic", unlock: { kind: "milestone", stat: "totalRuns", value: 50 },
-    trail: { color: 0xffb6d5, kind: "petal" } },                                  // petals that flutter down
+    trail: { color: 0xffb6d5, kind: "petal", perk: { kind: "heartBoost", factor: 0.5 } } },
   { id: "trail_prism", type: "trail", name: "Prismatic Trail", rarity: "legendary", unlock: { kind: "milestone", stat: "bestScore", value: 2000 },
-    trail: { color: 0xff5ad0, kind: "prism", colors: [0xff5a5a, 0xffb03a, 0xffe23a, 0x6cff8a, 0x5ad0ff, 0xc86bff] } }, // rainbow burst
+    trail: { color: 0xff5ad0, kind: "prism", colors: [0xff5a5a, 0xffb03a, 0xffe23a, 0x6cff8a, 0x5ad0ff, 0xc86bff], perk: { kind: "scoreBonus", value: 20 } } },
 
   // --- world themes (Background) --- theme key routes to a sky palette + decor
   { id: "theme_city", type: "theme", name: "On-Chain City", rarity: "common", unlock: { kind: "start" }, theme: "city run" },

@@ -14,7 +14,7 @@ import { getEnergyInputs } from "./hive/HiveEnergy.ts";
 import { CONTEST, weekId, msUntilWeekEnd, formatCountdown, type LeaderboardFile } from "./contest.ts";
 import { markPlayed, recordRun, getStreak, getQuests, getDailyBonusLives } from "./daily.ts";
 import { resolveCosmetics, applyRun, getLevelInfo, ownedIds, getEquipped, equip, getMilestones } from "./cosmetics/progression.ts";
-import { byType, byId, unlockLabel, TYPES, type CosmeticType } from "./cosmetics/catalog.ts";
+import { byType, byId, unlockLabel, perkLabel, TYPES, type CosmeticType } from "./cosmetics/catalog.ts";
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -62,6 +62,9 @@ const postScoreBtn = $("post-score") as HTMLButtonElement;
 const overlayBtn = $("playagain") as HTMLButtonElement; // contextual: Start / Resume / Play again
 const startBtn = $("start-btn") as HTMLButtonElement;
 const pauseBtn = $("pause-btn") as HTMLButtonElement;
+const modeRanked = $("mode-ranked") as HTMLButtonElement;
+const modeFree = $("mode-free") as HTMLButtonElement;
+const modeNote = $("mode-note");
 const loginBtn = $("login-btn") as HTMLButtonElement;
 const logoutBtn = $("logout") as HTMLButtonElement;
 const energyEl = $("energy");
@@ -153,7 +156,8 @@ function renderWardrobe() {
     const isEq = eq[wardrobeTab] === c.id;
     const d = document.createElement("div");
     d.className = `witem ${c.rarity}${isEq ? " equipped" : ""}${isOwned ? "" : " locked"}`;
-    d.innerHTML = `<span class="wname">${c.name}</span><span class="wmeta">${isEq ? "✓ equipped" : isOwned ? "tap to equip" : "🔒 " + unlockLabel(c.unlock)}</span>`;
+    const perk = c.type === "trail" && c.trail?.perk ? `<span class="wperk">⚡ ${perkLabel(c.trail.perk)} <span class="wperk-note">(Free-play)</span></span>` : "";
+    d.innerHTML = `<span class="wname">${c.name}</span><span class="wmeta">${isEq ? "✓ equipped" : isOwned ? "tap to equip" : "🔒 " + unlockLabel(c.unlock)}</span>${perk}`;
     if (!isOwned) {
       d.onclick = () => showToast(`🔒 ${c.name} — unlock: ${unlockLabel(c.unlock)}`); // explain why nothing changed
     } else if (!isEq) {
@@ -216,6 +220,10 @@ let realEnergy: ActivityInputs | null = null; // live on-chain energy inputs whe
 let postCoinsThisRun = 0; // for the "collect N post-coins" daily quest
 let lastScore = 0;
 let lastGameOver = false;
+// Ranked (default): trail perks OFF, score postable to the weekly contest (fair).
+// Free-play: trail perks ON, score NOT contest-eligible. runRanked = the mode the live run started in.
+let mode: "ranked" | "free" = localStorage.getItem("hiverunner_mode") === "free" ? "free" : "ranked";
+let runRanked = true;
 let started = false;   // has the current run begun?
 let paused = false;
 let overlayMode: "start" | "resume" | "playagain" | "none" = "none";
@@ -250,7 +258,29 @@ function escapeHtml(s: string) {
 $("post-toast").addEventListener("click", () => {
   if (started && !paused && !lastGameOver) togglePause();
 });
-function updatePostBtn() { postScoreBtn.disabled = !(lastGameOver && hiveAccount); }
+function updatePostBtn() {
+  postScoreBtn.disabled = !(lastGameOver && hiveAccount && runRanked);
+  postScoreBtn.title = runRanked ? "" : "Free-play runs aren't contest-eligible — switch to Ranked to post a score";
+}
+
+// Ranked ⇄ Free-play. Free-play turns on the equipped trail's perk but makes the run non-postable.
+function renderMode() {
+  modeRanked.classList.toggle("active", mode === "ranked");
+  modeFree.classList.toggle("active", mode === "free");
+  modeNote.textContent = mode === "free" ? "perks on · not contest-eligible" : "perks off · contest-eligible";
+}
+function setMode(m: "ranked" | "free") {
+  if (mode === m) return;
+  mode = m;
+  localStorage.setItem("hiverunner_mode", m);
+  renderMode();
+  showToast(m === "free" ? "✨ Free-play — trail perks on (not contest-eligible)" : "🏆 Ranked — fair run, contest-eligible");
+  if (!started || lastGameOver) start(false); // rebuild the ready run so perks match the new mode
+  updatePostBtn();
+}
+modeRanked.addEventListener("click", () => setMode("ranked"));
+modeFree.addEventListener("click", () => setMode("free"));
+renderMode();
 
 function setOverlay(mode: "start" | "resume" | "playagain" | "none") {
   overlayMode = mode;
@@ -486,6 +516,7 @@ function start(autostart = false) {
   paused = false;
   started = autostart;
   postCoinsThisRun = 0;
+  runRanked = mode === "ranked"; // this run's contest eligibility is locked in at start
   updatePostBtn();
 
   $("game-title").textContent = currentSpec.meta.title;
@@ -515,7 +546,7 @@ function start(autostart = false) {
   vBasket.textContent = `×${applied.basketWidthFactor}`;
   vScoreMult.textContent = `×${applied.scoreMultiplier}`;
 
-  engine = createEngine(app, applied.effectiveSpec, applied.bonusLives, applied.scoreMultiplier, onState, hiveFeed, postFeed, showPostToast, resolveCosmetics(), computeGhosts(), onGhostPass, onRaceWon);
+  engine = createEngine(app, applied.effectiveSpec, applied.bonusLives, applied.scoreMultiplier, onState, hiveFeed, postFeed, showPostToast, resolveCosmetics(), computeGhosts(), onGhostPass, onRaceWon, mode === "free");
   engine.mount();
 
   setOverlay(autostart ? "none" : "start"); // show "▶ Start" over the ready scene

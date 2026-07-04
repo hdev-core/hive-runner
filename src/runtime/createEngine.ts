@@ -29,13 +29,14 @@ export function createEngine(
   ghosts?: RaceGhost[],
   onGhostPass?: (label: string) => void,
   onRaceWon?: () => void,
+  perksEnabled = false,
 ): ArchetypeEngine {
   switch (spec.meta.archetype) {
     case "catcher":
     case "dodger":
       return new FallingEngine(app, spec, bonusLives, scoreMultiplier, onState, hiveFeed);
     case "runner":
-      return new RunnerEngine(app, spec, bonusLives, scoreMultiplier, onState, hiveFeed, postFeed, onPost, cosmetics, ghosts ?? [], onGhostPass, onRaceWon);
+      return new RunnerEngine(app, spec, bonusLives, scoreMultiplier, onState, hiveFeed, postFeed, onPost, cosmetics, ghosts ?? [], onGhostPass, onRaceWon, perksEnabled);
     default:
       throw new Error(`archetype "${spec.meta.archetype}" not implemented yet`);
   }

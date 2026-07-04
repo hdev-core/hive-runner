@@ -42,6 +42,11 @@
       button:disabled { opacity: .45; cursor: default; }
       .ctrl-row { display: flex; gap: 8px; }
       .ctrl-row button { padding: 6px 18px; font-size: 14px; }
+      .mode-row { display: flex; gap: 6px; align-items: center; }
+      .modebtn { background: #23232f; color: #b6b6c8; border: 1px solid #33334a; border-radius: 999px; padding: 5px 14px; font-size: 12px; font-weight: 700; cursor: pointer; }
+      #mode-ranked.active { background: #14301f; color: #8dff9e; border-color: #2a5; }
+      #mode-free.active { background: #2a1440; color: #d9b6ff; border-color: #7a4aa0; }
+      #mode-note { font-size: 11px; }
       #toast { position: fixed; left: 50%; transform: translateX(-50%); top: 16px; background: #10261c; color: #8dff9e; border: 1px solid #2a5; padding: 9px 16px; border-radius: 10px; font-size: 13px; z-index: 50; opacity: 0; pointer-events: none; transition: opacity .3s; }
       #toast.show { opacity: 1; }
       /* post-coin pickup: a clickable "you found a Hive post" toast (purple, matches the post-coins) */
@@ -108,6 +113,8 @@
       .witem { width: calc(50% - 3px); box-sizing: border-box; background: #1b1b28; border: 1px solid #2a2a3a; border-left-width: 3px; border-radius: 8px; padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
       .witem .wname { font-weight: 700; color: #e8e8f0; }
       .witem .wmeta { font-size: 10px; color: #8a8aa0; }
+      .witem .wperk { font-size: 10px; color: #ffcf6a; font-weight: 700; }
+      .witem .wperk-note { color: #7a7a92; font-weight: 400; }
       .witem.locked { opacity: .55; cursor: default; }
       .witem.equipped { background: #14301f; }
       .witem.equipped .wmeta { color: #8dff9e; }
@@ -137,6 +144,11 @@
         <button id="start-btn">▶ Start</button>
         <button id="pause-btn" class="ghost" disabled>⏸ Pause</button>
         <button id="restart-scene" class="ghost" title="Rebuild the scene — preview equipped items">↻ Restart</button>
+      </div>
+      <div class="mode-row">
+        <button id="mode-ranked" class="modebtn active" title="Fair run — trail perks off, score counts for the weekly contest">🏆 Ranked</button>
+        <button id="mode-free" class="modebtn" title="Trail perks on — casual run, not eligible for the contest">✨ Free-play</button>
+        <span id="mode-note" class="muted"></span>
       </div>
       <div id="stage-host">
         <button id="playagain">↻ Play again</button>

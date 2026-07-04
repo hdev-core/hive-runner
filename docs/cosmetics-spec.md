@@ -11,8 +11,10 @@ The **durable, ownable reward layer** — the research's #1 answer for retention
 
 ## 1. Design principles (from the research)
 
-- **Cosmetic-only, never pay-to-win.** Boosts stay in the *activity/energy/streak* systems (earned), not
-  purchasable. Cosmetics change looks, not stats.
+- **Cosmetic-only in ranked play, never pay-to-win.** Skins/parcels/themes are looks-only everywhere.
+  **Trails** carry a small **Free-play perk** (e.g. +score%, coin magnet, a hit-shield) that applies
+  *only* in the casual **Free-play** mode — **Ranked/contest runs ignore all perks**, so the weekly
+  leaderboard stays a pure skill contest. Fairness where it counts, expression + fun where it doesn't.
 - **Earn-first, not buy-first.** Progression + play unlock most cosmetics; a soft-currency shop adds
   *choice*, not a paywall.
 - **Three-tier goals** (daily / mid-term / long-term) — the durable retention shape, not one-off rewards.

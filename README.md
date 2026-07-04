@@ -37,6 +37,9 @@ scheduled GitHub Action that indexes scores. No gambling — every reward is ski
 - **Start / Pause / Restart / Play again** — the game loads in a *ready* state; a contextual overlay
   button and a control row handle Start, Pause/Resume, and **Restart** (rebuilds the scene so you can
   preview freshly-equipped cosmetics). Tapping the canvas also works (mobile-friendly).
+- **Ranked ⇄ Free-play** — **Ranked** (default) is a fair run: trail perks off, score postable to the
+  weekly contest. **Free-play** turns on the equipped **trail's perk** (+score%, coin magnet, hit-shield,
+  more hearts…) for a casual run that is *not* contest-eligible — so the leaderboard stays pure skill.
 - **Jump-clearable spawns** — hazard spacing has a computed minimum gap so every block is always
   clearable, with randomized jitter so it never feels metronomic.
 - Three games ship behind the same engines: **Runner Dash** (flagship), **Fruit Rush** (catcher),

@@ -13,7 +13,7 @@ import { makeHiveLogo } from "./hiveLogo.ts";
 import type { HiveFeed, BlockInfo } from "../hive/HiveFeed.ts";
 import type { PostFeed, HivePost } from "../hive/PostFeed.ts";
 import type { CosmeticRender } from "../cosmetics/progression.ts";
-import type { TrailParams } from "../cosmetics/catalog.ts";
+import type { TrailParams, TrailPerk } from "../cosmetics/catalog.ts";
 
 interface Obstacle {
   gfx: Graphics;
@@ -101,6 +101,15 @@ export class RunnerEngine {
   private groundCenterY: number;   // avatar center when grounded
   private jumpV: number;
   private maxLives: number;        // heart pickups heal up to this (the run's starting life count)
+  // Free-play trail perks (all no-ops in ranked/contest runs — see constructor):
+  private perk: TrailPerk | null = null;
+  private perkScoreMult = 1;       // scoreBonus → multiplies time score + pickups
+  private perkCoinMult = 1;        // coinBonus → multiplies pickup values
+  private magnetR = 0;             // magnet → pickup attraction radius (px)
+  private shieldCd = 0;            // shield → recharge time (ms); 0 = no shield perk
+  private shieldTimer = 0;         // ms until the shield recharges
+  private shieldReady = false;     // is a hit-block available right now?
+  private heartFactor = 1;         // heartBoost → scales heart spawn intervals (<1 = more often)
   private runPhase = 0;            // leg animation
   private runAnimAcc = 0;
   private scrollOffset = 0;
@@ -130,6 +139,7 @@ export class RunnerEngine {
     ghosts: RaceGhost[] = [],                  // real-score rivals to race in-world
     private onGhostPass?: (label: string) => void,
     private onRaceWon?: () => void,
+    perksEnabled = false,                      // Free-play: apply the equipped trail's perk
   ) {
     this.onState = onState;
     this.ghostDefs = ghosts;
@@ -150,6 +160,16 @@ export class RunnerEngine {
     this.maxLives = this.state.lives;
     const rampParam = spec.rules.difficulty?.param;
     this.rampParamBase = rampParam ? this.readParam(rampParam) : 0;
+
+    // Resolve the equipped trail's perk — only in Free-play; ranked runs keep everything neutral.
+    this.perk = perksEnabled ? (this.cos.trail?.perk ?? null) : null;
+    const p = this.perk;
+    if (p?.kind === "scoreBonus") this.perkScoreMult = 1 + p.value / 100;
+    else if (p?.kind === "coinBonus") this.perkCoinMult = 1 + p.value / 100;
+    else if (p?.kind === "magnet") this.magnetR = p.radius;
+    else if (p?.kind === "shield") { this.shieldCd = p.cooldownMs; this.shieldReady = true; }
+    else if (p?.kind === "heartBoost") this.heartFactor = p.factor;
+    this.heartTimer *= this.heartFactor;
   }
 
   mount() {
@@ -216,13 +236,15 @@ export class RunnerEngine {
     this.moveBillboards(f); // post scenery scrolls whether playing or draining
     this.trailTick(dt, f);  // equipped cosmetic trail
 
+    this.shieldTick(dt); // perk shield recharges regardless of phase
     if (this.phase === "play") {
       this.spawnTick(dt);
       this.postSceneryTick(dt);
       this.heartTick(dt);
+      this.magnetTick(f);
       this.moveAndCollide(f);
       this.levelTimeMs += dt;
-      this.scoreExact += (dt / 100) * this.scoreMultiplier;
+      this.scoreExact += (dt / 100) * this.scoreMultiplier * this.perkScoreMult;
       this.state.score = Math.floor(this.scoreExact);
       if (this.levelTimeMs >= this.state.target * 1000) this.phase = "draining";
       this.syncHud();
@@ -516,7 +538,7 @@ export class RunnerEngine {
     this.heartTimer -= dt;
     if (this.heartTimer <= 0) {
       this.spawnHeart();
-      this.heartTimer = 48000 + Math.random() * 32000; // 48–80s apart — a rare, welcome sight
+      this.heartTimer = (48000 + Math.random() * 32000) * this.heartFactor; // 48–80s (× heartBoost perk)
     }
   }
 
@@ -527,6 +549,28 @@ export class RunnerEngine {
     gfx.position.set(this.spec.world.width + r + 20, this.groundY - 118);
     this.layer.addChild(gfx);
     this.obstacles.push({ gfx, vx: -this.currentScrollSpeed(), kind: "pickup", value: 15, w: r * 2, h: r * 2, special: true, heal: true });
+  }
+
+  // Free-play magnet perk: nearby pickups drift toward the runner.
+  private magnetTick(f: number) {
+    if (!this.magnetR) return;
+    for (const o of this.obstacles) {
+      if (o.kind !== "pickup") continue;
+      const dx = this.charX - o.gfx.position.x, dy = this.charY - o.gfx.position.y;
+      const d = Math.hypot(dx, dy);
+      if (d < this.magnetR && d > 1) {
+        const pull = 2.8 * f;
+        o.gfx.position.x += (dx / d) * pull;
+        o.gfx.position.y += (dy / d) * pull;
+      }
+    }
+  }
+
+  // Free-play shield perk: recharge the hit-block over the cooldown.
+  private shieldTick(dt: number) {
+    if (!this.shieldCd || this.shieldReady) return;
+    this.shieldTimer -= dt;
+    if (this.shieldTimer <= 0) this.shieldReady = true;
   }
 
   // A collectible coin carrying a real post — grab it for points and a peek at the post.
@@ -690,13 +734,19 @@ export class RunnerEngine {
         this.flash(0xff6b9a);
         this.floatPoints(o.gfx.position.x, o.gfx.position.y, "+1 ♥");
       } else {
-        const gained = Math.round(o.value * this.scoreMultiplier);
-        this.scoreExact += o.value * this.scoreMultiplier;
+        const mult = this.scoreMultiplier * this.perkScoreMult * this.perkCoinMult; // perks apply in Free-play only
+        const gained = Math.round(o.value * mult);
+        this.scoreExact += o.value * mult;
         this.state.score = Math.floor(this.scoreExact);
         this.flash(0x6cff8a);
         if (o.special) this.floatPoints(o.gfx.position.x, o.gfx.position.y, `+${gained}`);
         if (o.post) this.onPost?.(o.post);
       }
+    } else if (this.shieldReady && this.shieldCd) {
+      // Free-play shield perk: absorb the hit and start recharging
+      this.shieldReady = false; this.shieldTimer = this.shieldCd;
+      this.flash(0x8fe6ff);
+      this.floatPoints(this.charX, this.charY - this.sy * 0.6, "shield!");
     } else {
       this.state.lives -= 1;
       this.flash(0xff5a5a);
@@ -797,6 +847,11 @@ export class RunnerEngine {
     g.circle(hx, hy, hr).fill(SKIN).stroke({ width: 2, color: OUT, alpha: 0.6 });
     g.roundRect(hx - hr - 1, hy - hr * 0.95, hr * 2 + 2, hr * 0.95, 4).fill(ACCENT).stroke({ width: 1.5, color: OUT, alpha: 0.6 });
     g.roundRect(hx - hr * 0.35, hy - hr * 0.12, hr * 1.35, hr * 0.5, 3).fill(VISOR).stroke({ width: 1, color: OUT, alpha: 0.5 });
+
+    // Free-play shield perk: a faint aura when a hit-block is ready
+    if (this.shieldReady && this.shieldCd) {
+      g.ellipse(0, 0, W * 0.78, H * 0.66).stroke({ width: 2, color: 0x8fe6ff, alpha: 0.45 });
+    }
   }
 
   // --- banners / hud ---------------------------------------------------------
