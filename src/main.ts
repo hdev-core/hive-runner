@@ -7,7 +7,7 @@ import { createEngine, type ArchetypeEngine } from "./runtime/createEngine.ts";
 import type { EngineState } from "./runtime/FallingEngine.ts";
 import { HiveFeed } from "./hive/HiveFeed.ts";
 import { PostFeed, type HivePost } from "./hive/PostFeed.ts";
-import { getGhosts, getCommunities } from "./hive/HiveSocial.ts";
+import { getGhosts, getCommunities, getCommunityRacers } from "./hive/HiveSocial.ts";
 import { postScore, login, hasKeychain } from "./hive/HiveAuth.ts";
 import { getEnergyInputs } from "./hive/HiveEnergy.ts";
 import { RaceStrip } from "./race/RaceStrip.ts";
@@ -277,21 +277,26 @@ function togglePause() {
   updatePauseBtn();
 }
 
+// shared race overtake / finish feedback (used by both the follows-race and community-race)
+const FOLLOWS_OPT = "__follows__";
+const onRacePass = (name: string) => showToast(`🏁 Passed @${name}!`);
+const onRaceFinish = () => showToast("🏆 You beat the pack to the line!");
+
 async function loadHive(user: string) {
   if (!user) return;
   hiveStatus.textContent = "loading…";
   try {
     const ghosts = await getGhosts(user, 6);
-    race.setGhosts(
-      ghosts,
-      (name) => showToast(`🏁 Passed @${name}!`),
-      () => showToast("🏆 You beat your Hive friends to the line!"),
-    );
+    race.setGhosts(ghosts, onRacePass, onRaceFinish);
     race.setPlayerAvatar(user);
     postFeed.setAccount(user); // billboards + post-coins now surface posts from accounts you follow
     hiveAccount = user;
     const comms = await getCommunities(user);
     communitySelect.innerHTML = "";
+    // first option keeps the default "race your follows"; picking a community swaps the field
+    const followOpt = document.createElement("option");
+    followOpt.value = FOLLOWS_OPT; followOpt.textContent = "My follows";
+    communitySelect.appendChild(followOpt);
     for (const c of comms.slice(0, 20)) {
       const o = document.createElement("option");
       o.value = c.name; o.textContent = c.title;
@@ -308,6 +313,26 @@ async function loadHive(user: string) {
     hiveStatus.textContent = "couldn't load @" + user;
   }
 }
+
+// Switching the Team dropdown swaps the racers: "My follows" → accounts you follow;
+// a community → that community's recent active posters. Posting still targets the community.
+async function switchTeam() {
+  if (!hiveAccount) return;
+  const val = communitySelect.value;
+  const label = val === FOLLOWS_OPT ? "your follows" : (communitySelect.options[communitySelect.selectedIndex]?.text ?? val);
+  hiveStatus.textContent = `loading ${label}…`;
+  try {
+    const ghosts = val === FOLLOWS_OPT ? await getGhosts(hiveAccount, 6) : await getCommunityRacers(val, 6);
+    race.setGhosts(ghosts, onRacePass, onRaceFinish);
+    race.setPlayerAvatar(hiveAccount);
+    hiveStatus.textContent = ghosts.length
+      ? `@${hiveAccount} · racing ${ghosts.length} from ${label}`
+      : `@${hiveAccount} · no racers in ${label}`;
+  } catch {
+    hiveStatus.textContent = `couldn't load ${label}`;
+  }
+}
+communitySelect.addEventListener("change", () => void switchTeam());
 
 // Read the player's live Hive energy (RC/mana + 24h ops + Actifit steps) and show it.
 async function loadEnergy(user: string) {
@@ -348,7 +373,8 @@ postScoreBtn.addEventListener("click", async () => {
   if (!hiveAccount) return;
   postScoreBtn.disabled = true;
   hiveStatus.textContent = "posting score…";
-  const r = await postScore(hiveAccount, communitySelect.value, lastScore, currentSpec.meta.title, weekId());
+  const community = communitySelect.value === FOLLOWS_OPT ? "" : communitySelect.value;
+  const r = await postScore(hiveAccount, community, lastScore, currentSpec.meta.title, weekId());
   hiveStatus.textContent = r.ok ? "score posted on-chain ✓" : "post failed: " + (r.error ?? "");
   showToast(r.ok ? "✓ Score entered in this week's contest" : "Post failed");
   if (r.ok) {

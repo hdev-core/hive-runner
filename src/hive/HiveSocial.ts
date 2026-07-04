@@ -39,6 +39,22 @@ export async function getGhosts(account: string, limit = 6): Promise<Ghost[]> {
   return (accts ?? []).map((a: any) => ({ name: a.name, pace: paceFromPosts(a.post_count) }));
 }
 
+/** Active members of a community → ghost racers: the most recent distinct authors posting
+ *  to the community, paced by their real Hive activity (same pace model as follows). */
+export async function getCommunityRacers(community: string, limit = 6): Promise<Ghost[]> {
+  const posts = await rpc("bridge.get_ranked_posts", { sort: "created", tag: community, observer: "" });
+  const authors: string[] = [];
+  const seen = new Set<string>();
+  for (const p of posts ?? []) {
+    const a = p.author;
+    if (a && !seen.has(a)) { seen.add(a); authors.push(a); }
+    if (authors.length >= limit) break;
+  }
+  if (!authors.length) return [];
+  const accts = await rpc("condenser_api.get_accounts", [authors]);
+  return (accts ?? []).map((a: any) => ({ name: a.name, pace: paceFromPosts(a.post_count) }));
+}
+
 /** Communities the user is subscribed to; falls back to the top communities. */
 export async function getCommunities(account?: string): Promise<Community[]> {
   if (account) {
