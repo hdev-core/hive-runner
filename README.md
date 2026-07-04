@@ -30,10 +30,13 @@ scheduled GitHub Action that indexes scores. No gambling — every reward is ski
 
 ### 🎮 Gameplay
 - **Endless runner** — tap / Space / ↑ to jump; clear "blockchain block" hazards and grab coins.
+- **Hearts** — an occasional floating heart (every ~22–38s) **restores a lost life**, up to the run's
+  starting count (or a few points if you're already full).
 - **Levels** — survive N seconds to advance; each level ramps scroll speed and spawn density, with a
   graceful drain → "Level complete" → next-level flow (no items cut off mid-air).
-- **Start / Pause / Play again** — the game loads in a *ready* state; a contextual overlay button and a
-  control row handle Start, Pause/Resume, and restart. Tap the canvas also works (mobile-friendly).
+- **Start / Pause / Restart / Play again** — the game loads in a *ready* state; a contextual overlay
+  button and a control row handle Start, Pause/Resume, and **Restart** (rebuilds the scene so you can
+  preview freshly-equipped cosmetics). Tapping the canvas also works (mobile-friendly).
 - **Jump-clearable spawns** — hazard spacing has a computed minimum gap so every block is always
   clearable, with randomized jitter so it never feels metronomic.
 - Three games ship behind the same engines: **Runner Dash** (flagship), **Fruit Rush** (catcher),

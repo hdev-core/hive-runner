@@ -417,6 +417,8 @@ overlayBtn.addEventListener("click", () => {
 });
 startBtn.addEventListener("click", () => { if (!started && !lastGameOver) beginPlay(); else start(true); });
 pauseBtn.addEventListener("click", () => togglePause());
+// Restart → rebuild the ready scene with the currently-equipped cosmetics (preview them anew)
+$("restart-scene").addEventListener("click", () => { start(false); showToast("↻ Scene reset — showing your equipped look"); });
 {
   const p = new URLSearchParams(location.search).get("hive") || localStorage.getItem("hiverunner_account");
   if (p) { hiveUser.value = p; void loadHive(cleanName(p)); } // restore session (or ?hive= override)

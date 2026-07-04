@@ -23,6 +23,7 @@ interface Obstacle {
   h: number;
   special?: boolean; // block/whale coin — show a +points popup on collect
   post?: HivePost;   // post-coin — surface author + title on collect
+  heal?: boolean;    // heart — restores a life (up to the run's starting max) instead of scoring
 }
 
 interface Billboard { node: Container; vx: number; w: number; }
@@ -69,6 +70,7 @@ export class RunnerEngine {
   private trailAcc = 0;
   private billboardTimer = 1200;   // ms until the next post-billboard drifts in
   private postCoinTimer = 4200;    // ms until the next collectible post-coin
+  private heartTimer = 16000;      // ms until the next (infrequent) life-restoring heart
   private spawnTimers = new Map<string, number>();
   private scoreText!: Text;
   private livesText!: Text;
@@ -91,6 +93,7 @@ export class RunnerEngine {
   private groundY: number;         // feet line
   private groundCenterY: number;   // avatar center when grounded
   private jumpV: number;
+  private maxLives: number;        // heart pickups heal up to this (the run's starting life count)
   private runPhase = 0;            // leg animation
   private runAnimAcc = 0;
   private scrollOffset = 0;
@@ -137,6 +140,7 @@ export class RunnerEngine {
       score: 0, lives: (spec.rules.lives ?? 3) + bonusLives, level: 1,
       target: this.targetForLevel(1), caught: 0, elapsed: 0, over: false,
     };
+    this.maxLives = this.state.lives;
     const rampParam = spec.rules.difficulty?.param;
     this.rampParamBase = rampParam ? this.readParam(rampParam) : 0;
   }
@@ -208,6 +212,7 @@ export class RunnerEngine {
     if (this.phase === "play") {
       this.spawnTick(dt);
       this.postSceneryTick(dt);
+      this.heartTick(dt);
       this.moveAndCollide(f);
       this.levelTimeMs += dt;
       this.scoreExact += (dt / 100) * this.scoreMultiplier;
@@ -407,6 +412,24 @@ export class RunnerEngine {
     if (this.ghosts.every((g) => g.passed)) { this.raceWonFired = true; this.onRaceWon?.(); }
   }
 
+  // An occasional floating heart that restores a lost life (or a few points if you're already full).
+  private heartTick(dt: number) {
+    this.heartTimer -= dt;
+    if (this.heartTimer <= 0) {
+      this.spawnHeart();
+      this.heartTimer = 22000 + Math.random() * 16000; // 22–38s apart — a rare, welcome sight
+    }
+  }
+
+  private spawnHeart() {
+    const r = 16;
+    const gfx = new Graphics();
+    drawHeart(gfx, r, 0xff5a7a);
+    gfx.position.set(this.spec.world.width + r + 20, this.groundY - 118);
+    this.layer.addChild(gfx);
+    this.obstacles.push({ gfx, vx: -this.currentScrollSpeed(), kind: "pickup", value: 15, w: r * 2, h: r * 2, special: true, heal: true });
+  }
+
   // A collectible coin carrying a real post — grab it for points and a peek at the post.
   private spawnPostCoin() {
     const post = this.postFeed?.next();
@@ -563,12 +586,18 @@ export class RunnerEngine {
 
   private resolveHit(o: Obstacle) {
     if (o.kind === "pickup") {
-      const gained = Math.round(o.value * this.scoreMultiplier);
-      this.scoreExact += o.value * this.scoreMultiplier;
-      this.state.score = Math.floor(this.scoreExact);
-      this.flash(0x6cff8a);
-      if (o.special) this.floatPoints(o.gfx.position.x, o.gfx.position.y, `+${gained}`);
-      if (o.post) this.onPost?.(o.post);
+      if (o.heal && this.state.lives < this.maxLives) {
+        this.state.lives += 1; // replenish a lost life
+        this.flash(0xff6b9a);
+        this.floatPoints(o.gfx.position.x, o.gfx.position.y, "+1 ♥");
+      } else {
+        const gained = Math.round(o.value * this.scoreMultiplier);
+        this.scoreExact += o.value * this.scoreMultiplier;
+        this.state.score = Math.floor(this.scoreExact);
+        this.flash(0x6cff8a);
+        if (o.special) this.floatPoints(o.gfx.position.x, o.gfx.position.y, `+${gained}`);
+        if (o.post) this.onPost?.(o.post);
+      }
     } else {
       this.state.lives -= 1;
       this.flash(0xff5a5a);
@@ -782,6 +811,16 @@ function drawBlock(g: Graphics, w: number, h: number) {
   g.roundRect(x, y, w, h, 3).fill(0x272f56).stroke({ width: 2, color: 0x0b0e1c, alpha: 0.85 });    // front face
   g.rect(x + 1, y + 1, w - 2, 3).fill({ color: HIVE_RED, alpha: 0.85 });                           // lit top edge
   g.poly(hexPts(0, 2, 8)).stroke({ width: 1.5, color: 0x6fd3ff, alpha: 0.75 });                    // hex glyph
+}
+
+// A life-restoring heart: two lobes + a point, with a gloss highlight. Pink so it reads as
+// distinct from the gold coins and blue block-coins.
+function drawHeart(g: Graphics, r: number, color: number) {
+  const k = r * 0.55;
+  g.circle(-k, -k * 0.5, k).fill(color);
+  g.circle(k, -k * 0.5, k).fill(color);
+  g.poly([-2 * k, -k * 0.5, 2 * k, -k * 0.5, 0, r * 1.15]).fill(color);
+  g.circle(-k * 0.55, -k * 0.75, k * 0.34).fill({ color: 0xffffff, alpha: 0.45 }); // gloss
 }
 
 // A translucent "ghost" runner silhouette (a rival's pace marker) with a soft aura.
