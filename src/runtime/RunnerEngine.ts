@@ -53,6 +53,17 @@ function hexPts(cx: number, cy: number, r: number): number[] {
   return p;
 }
 
+// 5-point star points centered at (cx,cy): outer radius rO, inner radius rI
+function starPts(cx: number, cy: number, rO: number, rI: number): number[] {
+  const p: number[] = [];
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? rO : rI;
+    const a = (Math.PI / 5) * i - Math.PI / 2;
+    p.push(cx + r * Math.cos(a), cy + r * Math.sin(a));
+  }
+  return p;
+}
+
 export class RunnerEngine {
   private background!: Background;
   private bg = new Graphics();
@@ -70,7 +81,7 @@ export class RunnerEngine {
   private trailAcc = 0;
   private billboardTimer = 1200;   // ms until the next post-billboard drifts in
   private postCoinTimer = 4200;    // ms until the next collectible post-coin
-  private heartTimer = 16000;      // ms until the next (infrequent) life-restoring heart
+  private heartTimer = 32000;      // ms until the next (rare) life-restoring heart
   private spawnTimers = new Map<string, number>();
   private scoreText!: Text;
   private livesText!: Text;
@@ -338,6 +349,9 @@ export class RunnerEngine {
         const jit = (Math.random() - 0.5) * this.sy * 0.4;
         if (t.kind === "hex") g.poly(hexPts(0, 0, 4)).stroke({ width: 1.5, color: t.color, alpha: 0.9 });
         else if (t.kind === "coin") g.circle(0, 0, 3.2).fill(t.color).circle(0, 0, 3.2).stroke({ width: 1, color: 0x8a5a10, alpha: 0.8 });
+        else if (t.kind === "ring") g.circle(0, 0, 3.6).stroke({ width: 1.5, color: t.color, alpha: 0.9 });
+        else if (t.kind === "star") g.poly(starPts(0, 0, 4.2, 2)).fill({ color: t.color, alpha: 0.95 });
+        else if (t.kind === "bubble") g.circle(0, 0, 3.2).fill({ color: t.color, alpha: 0.32 }).circle(0, 0, 3.2).stroke({ width: 1, color: t.color, alpha: 0.9 });
         else g.circle(0, 0, 2.6).fill(t.color);
         g.position.set(this.charX - this.sx * 0.36, this.charY + this.sy * 0.15 + jit);
         this.layer.addChildAt(g, 0); // behind obstacles/runner
@@ -417,7 +431,7 @@ export class RunnerEngine {
     this.heartTimer -= dt;
     if (this.heartTimer <= 0) {
       this.spawnHeart();
-      this.heartTimer = 22000 + Math.random() * 16000; // 22–38s apart — a rare, welcome sight
+      this.heartTimer = 48000 + Math.random() * 32000; // 48–80s apart — a rare, welcome sight
     }
   }
 

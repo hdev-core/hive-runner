@@ -29,15 +29,17 @@ export class Background {
     drawVGradient(sky, this.w, this.h, top, mid, bot);
     this.container.addChild(sky);
 
-    if (theme.includes("space")) {
+    // decor category: space themes get a starfield, daytime themes get clouds, and every other
+    // (Hive-flavoured) theme gets the flagship glow + hex + block-city skyline over its own sky.
+    if (theme.includes("space") || theme.includes("cosmos") || theme.includes("nebula")) {
       this.addStars();
-    } else if (theme.includes("city") || theme.includes("run") || theme.includes("hive") || theme.includes("neon") || theme.includes("dawn")) {
+    } else if (theme.includes("orchard") || theme.includes("meadow") || theme.includes("day")) {
+      this.addClouds();
+    } else {
       this.addGlow();       // Hive-red horizon sun
       this.addHexField();   // drifting Hive hexagons (far, faint)
       this.addBlockSkyline(0.18, 0x241a48, 60, 150, 0x6fd3ff); // far towers (cyan windows)
       this.addBlockSkyline(0.40, 0x130e28, 95, 250, 0xffcf6a); // near towers (amber windows)
-    } else {
-      this.addClouds();
     }
   }
 
@@ -161,6 +163,12 @@ function skyColors(theme: string): [number, number, number] {
   if (theme.includes("space")) return [0x0a0a24, 0x140a30, 0x241238];
   if (theme.includes("neon")) return [0x0a0420, 0x2a0a55, 0x08303a];   // dark violet -> teal
   if (theme.includes("dawn")) return [0x102a5a, 0x9a5a7a, 0xf0a060];   // blue -> pink -> amber sunrise
+  if (theme.includes("forest")) return [0x06180f, 0x123a1f, 0x2a5a3a]; // deep greens
+  if (theme.includes("sunset")) return [0x2a1a4a, 0x8a3a5a, 0xe0783a]; // violet -> magenta -> orange
+  if (theme.includes("ocean")) return [0x04142a, 0x0a3a5a, 0x1a6a7a];  // navy -> teal harbour
+  if (theme.includes("midnight")) return [0x04050e, 0x0a0f24, 0x14203a]; // near-black blue
+  if (theme.includes("sakura")) return [0x2a1030, 0x6a2a5a, 0xc06a8a]; // plum -> blossom pink
+  if (theme.includes("aurora")) return [0x05141f, 0x0a3a3a, 0x2a6a5a]; // teal-green polar glow
   if (theme.includes("city") || theme.includes("run") || theme.includes("hive"))
     return [0x0b0e2a, 0x2a1746, 0x5a2440]; // indigo -> violet -> deep Hive-red horizon
   if (theme.includes("orchard")) return [0x74c4ff, 0xa8dcf0, 0xcdeaa4];
