@@ -5,6 +5,11 @@ delivering blocks while real on-chain activity streams past you — live blocks,
 freshly-published posts, and the accounts you follow racing alongside you. Your **real Hive
 activity powers your run**, and you compete on an **on-chain weekly leaderboard**.
 
+> **Story — *Keepers of the Chain*:** every ~3 seconds the Hive seals a block, and only **Couriers**
+> carry it to the next **Witness** before it fades. You're one of them; your standing in the Hive is your
+> strength. A skippable intro sets it up (replay via **📖 Story**), and it reframes every mechanic — the
+> full bible is in [docs/story.md](docs/story.md).
+
 **▶ Play the live demo: https://hdev-core.github.io/hive-runner/**
 
 Built with Vite + TypeScript + PixiJS v8. 100% client-side (static site); the only "backend" is a

@@ -5,7 +5,7 @@ import type { GameSpec } from "../types/spec.ts";
 // left, and the character dodges UP/DOWN. Demonstrates one engine, two layouts.
 export const runnerDash: GameSpec = {
   specVersion: 1,
-  meta: { title: "Runner Dash", archetype: "runner", theme: "city run" },
+  meta: { title: "Hive Runner", archetype: "runner", theme: "city run" },
   world: {
     // landscape 4:3 — a side-scroller reads far better wide than tall, and it lets the
     // canvas render wider than the cards below it (coords are relative to these dims).

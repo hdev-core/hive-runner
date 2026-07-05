@@ -13,6 +13,17 @@
         height: 100dvh; box-sizing: border-box; }
       h1 { font-size: 16px; margin: 2px 0 0; font-weight: 600; letter-spacing: 0.3px; }
       .sub { font-size: 11px; color: #8a8aa0; margin: 0; }
+      .sub .kick { color: #e88; font-weight: 700; letter-spacing: 0.3px; }
+      .linkbtn { background: none; border: none; color: #9fd3ff; font-size: 11px; cursor: pointer; padding: 0; text-decoration: underline; font-weight: 600; }
+      /* story intro overlay */
+      .intro-back { position: fixed; inset: 0; background: rgba(6,7,15,0.94); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; }
+      .intro-card { max-width: 460px; background: linear-gradient(160deg,#161320,#1c1530); border: 1px solid #3a2a4a; border-radius: 16px; padding: 26px 26px 22px; box-shadow: 0 12px 55px #000b; text-align: center; }
+      .intro-kicker { font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; color: #e31337; font-weight: 800; }
+      .intro-title { font-size: 20px; margin: 6px 0 14px; font-weight: 700; }
+      .intro-card p { font-size: 13.5px; line-height: 1.6; color: #cfcfe0; margin: 0 0 11px; }
+      .intro-card p b { color: #fff; }
+      .intro-creed { color: #8dff9e !important; font-weight: 700; font-style: italic; margin-top: 14px !important; }
+      .intro-begin { margin-top: 6px; font-size: 15px; padding: 10px 24px; }
       .hint { font-size: 11px; color: #7a7a92; margin: 2px 0 0; }
       #stage-host { position: relative; flex: 1 1 0; min-height: 0; width: 100%; display: flex;
         align-items: center; justify-content: center; }
@@ -126,8 +137,8 @@
   </head>
   <body>
     <div id="app">
-      <h1 id="game-title">Playforge</h1>
-      <p class="sub">A Hive-powered arcade · <span id="archetype-label">runner</span> · live on-chain block feed ⛓</p>
+      <h1 id="game-title">Hive Runner</h1>
+      <p class="sub"><span class="kick">Keepers of the Chain</span> · a Hive <span id="archetype-label">runner</span> — deliver every block before it fades ⛓ · <button id="story-btn" class="linkbtn">📖 Story</button></p>
       <div class="hive-bar">
         <input id="hive-user" placeholder="your Hive @username" />
         <button id="login-btn">🔑 Login</button>
@@ -231,6 +242,17 @@
     </div>
     <div id="toast"></div>
     <a id="post-toast" target="_blank" rel="noopener noreferrer"></a>
+    <div id="intro" class="intro-back" style="display:none">
+      <div class="intro-card">
+        <div class="intro-kicker">Keepers of the Chain</div>
+        <h2 class="intro-title">You are a Courier of the Hive</h2>
+        <p>Every three seconds, the Hive seals a new <b>block</b> — a parcel of everyone's stories, votes, and memories.</p>
+        <p>No server carries it onward. Only the <b>Couriers</b>. Run each block to the next <b>Witness</b> before it slips into the <b>Fade</b>.</p>
+        <p>The <b>Monolith</b> says one machine could do your job — that people are too slow to keep their own history. Every block you deliver proves it wrong.</p>
+        <p class="intro-creed">Run, Courier. Keep the chain alive.</p>
+        <button id="intro-begin" class="intro-begin">▶ Begin delivery</button>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

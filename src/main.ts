@@ -234,6 +234,14 @@ function showToast(msg: string) {
   setTimeout(() => toast.classList.remove("show"), 2200);
 }
 
+// --- story intro (Keepers of the Chain) — skippable, shown once, replayable via 📖 Story ----
+const introEl = $("intro");
+const showIntro = () => { introEl.style.display = "flex"; };
+const hideIntro = () => { introEl.style.display = "none"; localStorage.setItem("hiverunner_intro", "1"); };
+$("intro-begin").addEventListener("click", hideIntro);
+$("story-btn").addEventListener("click", showIntro);
+if (!localStorage.getItem("hiverunner_intro") || new URLSearchParams(location.search).get("intro") === "1") showIntro();
+
 // Post-coin pickup → a distinct, clickable "you discovered a Hive post" toast.
 // Clicking opens the real post on peakd in a new tab (content-discovery while you run).
 const postToast = $("post-toast") as HTMLAnchorElement;
@@ -522,7 +530,7 @@ function start(autostart = false) {
   $("game-title").textContent = currentSpec.meta.title;
   $("archetype-label").textContent = currentSpec.meta.archetype;
   $("hint").textContent = currentSpec.meta.archetype === "runner"
-    ? "Tap, Space or ↑ to jump — clear rocks, grab coins"
+    ? "Tap, Space or ↑ to jump the congestion · grab credits · never drop the block"
     : "Move with pointer or ← → keys";
   app.renderer.background.color = parseBg(currentSpec.world.palette?.[2]) ?? 0x101018;
 

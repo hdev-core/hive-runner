@@ -37,6 +37,22 @@ interface GhostRunner { def: RaceGhost; node: Container; passed: boolean; offset
 const GRAVITY = 1.0;
 const HIVE_RED = 0xe31337;
 
+// Story: the run reads as a descent deeper into the chain (see docs/story.md). Level names cycle,
+// each loop "deeper". Shown on level-up banners; level-complete is a Witness handoff.
+const LEVEL_ARC: { name: string; sub: string }[] = [
+  { name: "The Mempool", sub: "unconfirmed — keep it moving" },
+  { name: "Witness Row", sub: "hand off, don't drop it" },
+  { name: "The Fast Lane", sub: "the blocks are tightening" },
+  { name: "Consensus Gorge", sub: "faster · busier" },
+  { name: "The Deep Chain", sub: "no machine can follow you here" },
+  { name: "The Long Fork", sub: "hold the line" },
+];
+function levelArc(level: number): { name: string; sub: string } {
+  const base = LEVEL_ARC[(level - 1) % LEVEL_ARC.length];
+  const loop = Math.floor((level - 1) / LEVEL_ARC.length);
+  return loop === 0 ? base : { name: `${base.name} ▾${loop + 1}`, sub: "deeper into the chain" };
+}
+
 const DEFAULT_COS: CosmeticRender = {
   skin: { body: 0x2a3255, accent: HIVE_RED, skinTone: 0xf1cba2, visor: 0x74e0ff },
   parcel: { box: 0xcaa46a, twine: 0x8a6a3a },
@@ -649,7 +665,7 @@ export class RunnerEngine {
   private enterComplete() {
     this.phase = "complete";
     this.completeTimer = 1200;
-    this.showBanner("Level Complete!", `Level ${this.state.level} cleared`, true);
+    this.showBanner("Block delivered!", `handed off to the Witness · ${levelArc(this.state.level).name} cleared`, true);
   }
 
   private beginNextLevel() {
@@ -660,7 +676,8 @@ export class RunnerEngine {
     this.speedMult *= 1.08;
     this.spawnMult *= 1.12;
     for (const e of this.spawnables()) this.spawnTimers.set(e.id, this.spawnIntervalMs(e));
-    this.showBanner(`Level ${this.state.level}`, "faster · busier");
+    const arc = levelArc(this.state.level);
+    this.showBanner(arc.name, arc.sub);
   }
 
   // --- obstacles -------------------------------------------------------------
@@ -870,9 +887,8 @@ export class RunnerEngine {
   }
 
   private showBoostBanner() {
-    const lines: string[] = [];
-    if (this.scoreMultiplier > 1) lines.push(`score ×${this.scoreMultiplier}`);
-    this.showBanner("Activity boost", lines.length ? `${lines.join("  ·  ")}  ·  higher jump` : "be active on Hive to power up");
+    const boost = this.scoreMultiplier > 1 ? `standing ×${this.scoreMultiplier} · ` : "";
+    this.showBanner("Block sealed — run!", `${boost}deliver it to the Witness before it fades`);
   }
 
   private tickBanner(dt: number) {
