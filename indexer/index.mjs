@@ -66,6 +66,40 @@ function normalizeOp(op) {
   return { type: t, value: op.value ?? {} };
 }
 
+// --- anti-cheat: plausibility layer (the indexer is the authority; the client is never trusted) ---
+// A signature proves WHO posted, not that a score is real. We can't fully validate a client-side
+// game here (that's the planned deterministic-replay layer — see docs/anti-cheat.md), but we can
+// reject the physically IMPOSSIBLE, which kills trivial "just broadcast score: 9999999" forgery.
+const MAX_RATE = 300;          // generous upper bound on points/second (time score + coins + chain)
+const BASE_SLACK = 600;        // flat allowance for early pickups; also the cap for context-less runs
+const MAX_DURATION_S = 1800;   // a single run realistically can't exceed ~30 min
+const HARD_CAP = 500_000;      // absolute sanity ceiling
+
+// Minimum seconds to legitimately REACH a level: you must survive each level's target first
+// (targetForLevel(L) = 10 + 4*L in RunnerEngine). Keep in sync with the engine.
+export function minTimeForLevel(level) {
+  let t = 0;
+  for (let i = 1; i < level; i++) t += 10 + 4 * i;
+  return t;
+}
+
+// Returns true if the score is *consistent with its own run context*. Conservative on purpose:
+// bounds are loose so real runs never get rejected, but forged numbers can't survive them.
+export function plausibleScore(payload) {
+  const score = Number(payload.score);
+  if (!Number.isFinite(score) || score < 0 || score > HARD_CAP) return false;
+  const durMs = Number(payload.durationMs);
+  const durS = Number.isFinite(durMs) && durMs >= 0 ? durMs / 1000 : null;
+  // No verifiable duration → we can't bound the score, so only accept tiny scores. This means a
+  // context-less (legacy/forged-minimal) submission can never top the board.
+  if (durS === null) return score <= BASE_SLACK;
+  if (durS > MAX_DURATION_S) return false;
+  const level = Math.floor(Number(payload.level)) || 1;
+  if (level > 1 && durS + 2 < minTimeForLevel(level) * 0.9) return false; // claimed level too high for time survived
+  if (score > MAX_RATE * durS + BASE_SLACK) return false;                 // score too high for time survived
+  return true;
+}
+
 function loadJson(path, fallback) {
   try { return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : fallback; }
   catch { return fallback; }
@@ -77,11 +111,12 @@ function saveJson(path, obj) {
   writeFileSync(path, JSON.stringify(obj, null, 2) + "\n");
 }
 
-// state.weeks[week][account] = { score, game, ts }  (ts = block time, seconds)
-export function recordScore(state, week, account, score, game, ts) {
+// state.weeks[week][account] = { score, game, ts, level, durationMs }  (ts = block time, seconds)
+// level/durationMs are retained for the manual pre-payout review of top scorers.
+export function recordScore(state, week, account, score, game, ts, level = 0, durationMs = 0) {
   const w = (state.weeks[week] ||= {});
   const cur = w[account];
-  if (!cur || score > cur.score) w[account] = { score, game, ts };
+  if (!cur || score > cur.score) w[account] = { score, game, ts, level, durationMs };
 }
 
 // Process a batch of blocks (as returned by block_api.get_block_range) into `state`.
@@ -101,10 +136,11 @@ export function processBlocks(state, blocks) {
         let payload;
         try { payload = JSON.parse(value.json); } catch { continue; }
         if (payload?.action !== "score") continue;
-        const score = Number(payload.score);
-        if (!Number.isFinite(score) || score < 0 || score > 10_000_000) continue;
+        if (!plausibleScore(payload)) continue; // reject the impossible (anti-cheat plausibility layer)
         const game = typeof payload.game === "string" ? payload.game.slice(0, 40) : "";
-        recordScore(state, week, account, Math.floor(score), game, tsSec);
+        const level = Math.max(0, Math.floor(Number(payload.level)) || 0);
+        const durationMs = Math.max(0, Math.floor(Number(payload.durationMs)) || 0);
+        recordScore(state, week, account, Math.floor(Number(payload.score)), game, tsSec, level, durationMs);
         found++;
       }
     }
@@ -145,7 +181,7 @@ export function finalize(state, head) {
   const contests = {};
   for (const [week, accounts] of Object.entries(state.weeks)) {
     contests[week] = Object.entries(accounts)
-      .map(([account, v]) => ({ account, score: v.score, game: v.game, ts: v.ts }))
+      .map(([account, v]) => ({ account, score: v.score, game: v.game, ts: v.ts, level: v.level ?? 0, durationMs: v.durationMs ?? 0 }))
       .sort((a, b) => b.score - a.score || a.ts - b.ts)
       .slice(0, TOP_PER_WEEK);
   }

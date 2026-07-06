@@ -15,7 +15,7 @@ export const CONTEST = {
   dataUrl: "https://raw.githubusercontent.com/hdev-core/hive-runner/main/data/leaderboard.json",
 };
 
-export interface LeaderRow { account: string; score: number; game: string; ts: number; }
+export interface LeaderRow { account: string; score: number; game: string; ts: number; level?: number; durationMs?: number; }
 export interface LeaderboardFile {
   updated: number;                         // ms epoch of the last indexer run
   current: string;                         // contest week id the indexer considers "now"

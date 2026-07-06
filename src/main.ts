@@ -219,6 +219,9 @@ let hiveAccount = "";
 let realEnergy: ActivityInputs | null = null; // live on-chain energy inputs when logged in
 let postCoinsThisRun = 0; // for the "collect N post-coins" daily quest
 let lastScore = 0;
+let lastLevel = 1;        // run context captured at game-over → posted for anti-cheat plausibility
+let lastDurationMs = 0;
+let lastPostCoins = 0;
 let lastGameOver = false;
 // Ranked (default): trail perks OFF, score postable to the weekly contest (fair).
 // Free-play: trail perks ON, score NOT contest-eligible. runRanked = the mode the live run started in.
@@ -438,7 +441,8 @@ postScoreBtn.addEventListener("click", async () => {
   postScoreBtn.disabled = true;
   hiveStatus.textContent = "posting score…";
   const community = communitySelect.value === FOLLOWS_OPT ? "" : communitySelect.value;
-  const r = await postScore(hiveAccount, community, lastScore, currentSpec.meta.title, weekId());
+  const r = await postScore(hiveAccount, community, lastScore, currentSpec.meta.title, weekId(),
+    { level: lastLevel, durationMs: lastDurationMs, postCoins: lastPostCoins });
   hiveStatus.textContent = r.ok ? "score posted on-chain ✓" : "post failed: " + (r.error ?? "");
   showToast(r.ok ? "✓ Score entered in this week's contest" : "Post failed");
   if (r.ok) {
@@ -565,6 +569,7 @@ function onState(s: EngineState) {
   if (s.over && !lastGameOver) {
     lastGameOver = true;
     lastScore = s.score;
+    lastLevel = s.level; lastDurationMs = s.elapsed; lastPostCoins = postCoinsThisRun; // for the on-chain post
     // advance daily quests with this run's results
     const done = recordRun({ score: s.score, level: s.level, surviveSec: s.elapsed / 1000, postCoins: postCoinsThisRun });
     for (const label of done) showToast(`🎯 Quest complete: ${label}`);
