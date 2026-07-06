@@ -15,15 +15,41 @@
       .sub { font-size: 11px; color: #8a8aa0; margin: 0; }
       .sub .kick { color: #e88; font-weight: 700; letter-spacing: 0.3px; }
       .linkbtn { background: none; border: none; color: #9fd3ff; font-size: 11px; cursor: pointer; padding: 0; text-decoration: underline; font-weight: 600; }
-      /* story intro overlay */
-      .intro-back { position: fixed; inset: 0; background: rgba(6,7,15,0.94); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; }
-      .intro-card { max-width: 460px; background: linear-gradient(160deg,#161320,#1c1530); border: 1px solid #3a2a4a; border-radius: 16px; padding: 26px 26px 22px; box-shadow: 0 12px 55px #000b; text-align: center; }
-      .intro-kicker { font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; color: #e31337; font-weight: 800; }
-      .intro-title { font-size: 20px; margin: 6px 0 14px; font-weight: 700; }
-      .intro-card p { font-size: 13.5px; line-height: 1.6; color: #cfcfe0; margin: 0 0 11px; }
-      .intro-card p b { color: #fff; }
-      .intro-creed { color: #8dff9e !important; font-weight: 700; font-style: italic; margin-top: 14px !important; }
-      .intro-begin { margin-top: 6px; font-size: 15px; padding: 10px 24px; }
+      /* header brand mark */
+      .brandline { display: flex; align-items: center; justify-content: center; gap: 8px; }
+      .brandmark svg { width: 19px; height: 17px; display: block; fill: #e31337; filter: drop-shadow(0 0 6px #e3133777); }
+      /* story intro overlay — branded */
+      .intro-back { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px;
+        background: radial-gradient(ellipse at 50% 28%, rgba(60,12,26,0.82), rgba(6,7,15,0.97)); }
+      .intro-card { position: relative; overflow: hidden; max-width: 472px; text-align: center; padding: 30px 30px 26px;
+        border: 1px solid #4a2a3c; border-radius: 18px;
+        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='49' viewBox='0 0 28 49'%3E%3Cg fill-rule='evenodd'%3E%3Cg fill='%23e31337' fill-opacity='0.05'%3E%3Cpath d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.9v12.7l11 6.35 11-6.35V17.9l-11-6.35L3 17.9zM0 15l12.98-7.5V0h-2v6.35L0 12.69v2.3zm0 18.5L12.98 41v8h-2v-6.85L0 35.81v-2.3zM15 0v7.5L27.99 15H28v-2.31h-.01L17 6.35V0h-2zm0 49v-8l12.99-7.5H28v2.31h-.01L17 42.15V49h-2z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat,
+          linear-gradient(160deg, #191423, #241636);
+        box-shadow: 0 20px 70px #000c, inset 0 0 0 1px #e3133718;
+        animation: introRise .42s cubic-bezier(.2,.7,.3,1) both; }
+      .intro-card::before { content: ""; position: absolute; top: 0; left: 12%; right: 12%; height: 2px;
+        background: linear-gradient(90deg, transparent, #e31337, #ff8a3a, transparent); }
+      .intro-watermark { position: absolute; right: -34px; bottom: -34px; width: 190px; opacity: .05; pointer-events: none; }
+      .intro-watermark svg { width: 100%; fill: #e31337; }
+      .intro-logo { position: relative; display: flex; justify-content: center; margin-bottom: 12px; animation: introGlow 2.8s ease-in-out infinite; }
+      .intro-logo svg { width: 46px; height: 40px; fill: #e31337; }
+      .intro-kicker { position: relative; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #ff5568; font-weight: 800; }
+      .intro-title { position: relative; font-size: 22px; margin: 7px 0 12px; font-weight: 800; letter-spacing: .2px; color: #fff; }
+      .intro-rule { width: 64px; height: 2px; margin: 0 auto 16px; border-radius: 2px; background: linear-gradient(90deg, #e31337, #ff8a3a); }
+      .intro-card p { position: relative; font-size: 13.5px; line-height: 1.62; color: #c9c9dc; margin: 0 0 11px; }
+      .intro-card p b { color: #fff; font-weight: 700; }
+      .intro-card p b.ally { color: #7fe0ff; }
+      .intro-card p b.foe { color: #ff6a7a; }
+      .intro-creed { position: relative; margin: 16px auto 18px; max-width: 330px; padding: 9px 16px;
+        color: #8dff9e; font-weight: 700; font-style: italic; font-size: 14px;
+        border: 1px solid #2a5a3a; border-radius: 10px; background: rgba(20,48,31,0.35); }
+      .intro-begin { position: relative; margin-top: 4px; font-size: 15px; font-weight: 800; letter-spacing: .3px;
+        padding: 11px 26px; border-radius: 12px; color: #fff; border: 0; cursor: pointer;
+        background: linear-gradient(180deg, #ff3a4e, #c30f22);
+        box-shadow: 0 8px 22px #e3133766, inset 0 1px 0 #ff8a99; }
+      .intro-begin:hover { filter: brightness(1.08); }
+      @keyframes introRise { from { opacity: 0; transform: translateY(16px) scale(.975); } to { opacity: 1; transform: none; } }
+      @keyframes introGlow { 0%,100% { filter: drop-shadow(0 0 9px #e3133766); } 50% { filter: drop-shadow(0 0 22px #e31337cc); } }
       .hint { font-size: 11px; color: #7a7a92; margin: 2px 0 0; }
       #stage-host { position: relative; flex: 1 1 0; min-height: 0; width: 100%; display: flex;
         align-items: center; justify-content: center; }
@@ -137,7 +163,7 @@
   </head>
   <body>
     <div id="app">
-      <h1 id="game-title">Hive Runner</h1>
+      <h1 class="brandline"><span class="brandmark" aria-hidden="true"><svg viewBox="0 0 220 190"><path d="M157.27,107.26a1,1,0,0,1,.82,1.42l-46.75,80.85a1,1,0,0,1-.82.47H81.94a.94.94,0,0,1-.81-1.42l46.75-80.85a.94.94,0,0,1,.81-.47ZM129.48,84.09a1,1,0,0,1-.82-.47L81.13,1.42A.94.94,0,0,1,81.94,0h28.58a1,1,0,0,1,.82.47l47.53,82.2a.94.94,0,0,1-.81,1.42Z"/><path d="M135.13,1.42A.94.94,0,0,1,136,0h28.62a.93.93,0,0,1,.81.47l54.49,94.06a.93.93,0,0,1,0,.94l-54.49,94.06a.93.93,0,0,1-.81.47H136a.94.94,0,0,1-.82-1.42L189.34,95Zm-23.26,93.1a1,1,0,0,1,0,1L57.13,189.53a1,1,0,0,1-1.65,0L.13,95.48a1,1,0,0,1,0-1L54.87.47a1,1,0,0,1,1.65,0Z"/></svg></span><span id="game-title">Hive Runner</span></h1>
       <p class="sub"><span class="kick">Keepers of the Chain</span> · a Hive <span id="archetype-label">runner</span> — deliver every block before it fades ⛓ · <button id="story-btn" class="linkbtn">📖 Story</button></p>
       <div class="hive-bar">
         <input id="hive-user" placeholder="your Hive @username" />
@@ -244,12 +270,15 @@
     <a id="post-toast" target="_blank" rel="noopener noreferrer"></a>
     <div id="intro" class="intro-back" style="display:none">
       <div class="intro-card">
+        <span class="intro-watermark" aria-hidden="true"><svg viewBox="0 0 220 190"><path d="M157.27,107.26a1,1,0,0,1,.82,1.42l-46.75,80.85a1,1,0,0,1-.82.47H81.94a.94.94,0,0,1-.81-1.42l46.75-80.85a.94.94,0,0,1,.81-.47ZM129.48,84.09a1,1,0,0,1-.82-.47L81.13,1.42A.94.94,0,0,1,81.94,0h28.58a1,1,0,0,1,.82.47l47.53,82.2a.94.94,0,0,1-.81,1.42Z"/><path d="M135.13,1.42A.94.94,0,0,1,136,0h28.62a.93.93,0,0,1,.81.47l54.49,94.06a.93.93,0,0,1,0,.94l-54.49,94.06a.93.93,0,0,1-.81.47H136a.94.94,0,0,1-.82-1.42L189.34,95Zm-23.26,93.1a1,1,0,0,1,0,1L57.13,189.53a1,1,0,0,1-1.65,0L.13,95.48a1,1,0,0,1,0-1L54.87.47a1,1,0,0,1,1.65,0Z"/></svg></span>
+        <div class="intro-logo" aria-hidden="true"><svg viewBox="0 0 220 190"><path d="M157.27,107.26a1,1,0,0,1,.82,1.42l-46.75,80.85a1,1,0,0,1-.82.47H81.94a.94.94,0,0,1-.81-1.42l46.75-80.85a.94.94,0,0,1,.81-.47ZM129.48,84.09a1,1,0,0,1-.82-.47L81.13,1.42A.94.94,0,0,1,81.94,0h28.58a1,1,0,0,1,.82.47l47.53,82.2a.94.94,0,0,1-.81,1.42Z"/><path d="M135.13,1.42A.94.94,0,0,1,136,0h28.62a.93.93,0,0,1,.81.47l54.49,94.06a.93.93,0,0,1,0,.94l-54.49,94.06a.93.93,0,0,1-.81.47H136a.94.94,0,0,1-.82-1.42L189.34,95Zm-23.26,93.1a1,1,0,0,1,0,1L57.13,189.53a1,1,0,0,1-1.65,0L.13,95.48a1,1,0,0,1,0-1L54.87.47a1,1,0,0,1,1.65,0Z"/></svg></div>
         <div class="intro-kicker">Keepers of the Chain</div>
         <h2 class="intro-title">You are a Courier of the Hive</h2>
+        <div class="intro-rule"></div>
         <p>Every three seconds, the Hive seals a new <b>block</b> — a parcel of everyone's stories, votes, and memories.</p>
-        <p>No server carries it onward. Only the <b>Couriers</b>. Run each block to the next <b>Witness</b> before it slips into the <b>Fade</b>.</p>
-        <p>The <b>Monolith</b> says one machine could do your job — that people are too slow to keep their own history. Every block you deliver proves it wrong.</p>
-        <p class="intro-creed">Run, Courier. Keep the chain alive.</p>
+        <p>No server carries it onward. Only the <b class="ally">Couriers</b>. Run each block to the next <b class="ally">Witness</b> before it slips into the <b class="foe">Fade</b>.</p>
+        <p>The <b class="foe">Monolith</b> says one machine could do your job — that people are too slow to keep their own history. Every block you deliver proves it wrong.</p>
+        <div class="intro-creed">Run, Courier. Keep the chain alive.</div>
         <button id="intro-begin" class="intro-begin">▶ Begin delivery</button>
       </div>
     </div>
