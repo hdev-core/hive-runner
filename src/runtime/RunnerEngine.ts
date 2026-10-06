@@ -138,7 +138,11 @@ export class RunnerEngine {
 
   private onState?: (s: EngineState) => void;
   private keys = new Set<string>();
-  private boundKeyDown = (e: KeyboardEvent) => { this.keys.add(e.key); if (isJumpKey(e.key)) { e.preventDefault(); this.jump(); } };
+  private boundKeyDown = (e: KeyboardEvent) => {
+    if (isTypingTarget(e.target)) return; // don't swallow "w"/Space while the player types a username
+    this.keys.add(e.key);
+    if (isJumpKey(e.key)) { e.preventDefault(); this.jump(); }
+  };
   private boundKeyUp = (e: KeyboardEvent) => this.keys.delete(e.key);
   private boundTap = () => this.jump();
 
@@ -970,6 +974,10 @@ export class RunnerEngine {
   }
 }
 
+function isTypingTarget(t: EventTarget | null): boolean {
+  const n = t as HTMLElement | null;
+  return !!n && (n.tagName === "INPUT" || n.tagName === "TEXTAREA" || n.tagName === "SELECT" || n.isContentEditable);
+}
 function isJumpKey(k: string) { return k === " " || k === "ArrowUp" || k === "w" || k === "W"; }
 
 // A hazard drawn as a crisp isometric "blockchain block": front + top + right faces,

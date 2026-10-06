@@ -2,7 +2,10 @@ name: Contest indexer
 
 on:
   schedule:
-    - cron: "*/15 * * * *" # every 15 minutes (GitHub may delay/skip under load)
+    # Asked for every 15 minutes, but GitHub runs scheduled workflows best-effort: in practice
+    # this repo sees a run every 3-9 hours. For a dependable cadence, trigger workflow_dispatch
+    # from an external cron (see docs/operations.md).
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -15,11 +18,14 @@ concurrency:
 jobs:
   index:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Indexer tests
+        run: node --test indexer/index.test.mjs
       - name: Stream chain and aggregate scores
         run: node indexer/index.mjs
       - name: Commit updated leaderboard
@@ -31,5 +37,10 @@ jobs:
             echo "no changes"
           else
             git commit -m "chore(indexer): update leaderboard [skip ci]"
-            git push
+            # main may have moved while we were scanning (a human push): rebase and retry
+            for attempt in 1 2 3; do
+              if git pull --rebase --quiet && git push; then exit 0; fi
+              sleep 5
+            done
+            echo "could not push the leaderboard after 3 attempts" && exit 1
           fi
