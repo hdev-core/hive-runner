@@ -25,7 +25,11 @@ export function login(username: string): Promise<{ ok: boolean; error?: string }
   });
 }
 
-export interface RunContext { level: number; durationMs: number; postCoins: number; }
+export interface RunContext {
+  level: number; durationMs: number; postCoins: number;
+  startTs: number;    // wall-clock seconds when the run began
+  startBlock: number; // chain head block when the run began (0 if the block feed was down)
+}
 
 /**
  * Broadcast a score to the chain as a `hive-runner` custom_json (free, posting auth).
@@ -36,8 +40,9 @@ export interface RunContext { level: number; durationMs: number; postCoins: numb
  * Anti-cheat note: a signature only proves *who* posted, never that the score is real —
  * a client-side game can't be fully trustless. We include run context (level, duration) so
  * the indexer can reject IMPOSSIBLE scores (plausibility layer), and prizes are reviewed
- * before payout. Full deterministic-replay validation is the planned next layer — see
- * docs/anti-cheat.md. The `nonce` is a per-run id for that future replay/dedup work.
+ * before payout. `startBlock`/`startTs` anchor the run to real time: the indexer rejects a run
+ * whose claimed duration is longer than the time between its start and the block it was posted
+ * in. Full deterministic-replay validation is the planned next layer — see docs/anti-cheat.md. The `nonce` is a per-run id for that future replay/dedup work.
  */
 export function postScore(
   username: string,
@@ -52,10 +57,11 @@ export function postScore(
     if (!kc) return resolve({ ok: false, error: "Hive Keychain extension not found" });
     const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
     const json = JSON.stringify({
-      app: "hive-runner/0.3", action: "score", game, community, score, contest,
+      app: "hive-runner/0.4", action: "score", game, community, score, contest,
       level: Math.max(1, Math.floor(run.level)),
       durationMs: Math.max(0, Math.round(run.durationMs)),
       postCoins: Math.max(0, Math.floor(run.postCoins)),
+      startTs: Math.floor(run.startTs), startBlock: Math.max(0, Math.floor(run.startBlock)),
       nonce, ts: Math.floor(Date.now() / 1000),
     });
     kc.requestCustomJson(username, "hive-runner", "Posting", json, `Post score: ${score}`,

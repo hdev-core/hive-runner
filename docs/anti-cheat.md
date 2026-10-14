@@ -28,10 +28,25 @@ Cheap, indexer-side, kills trivial forgery today.
   - `durationMs > 30 min`, or `score > 500k` absolute cap.
   - **No verifiable duration → only tiny scores accepted**, so a context-less/forged-minimal payload
     can never top the board.
+- **Strict types** (added in the Phase 1 launch fixes): `score`, `level` and `durationMs` must be real
+  numbers and `level` an integer of 1 or more. Strings, arrays and negative levels used to pass through
+  numeric coercion.
+- **Anchored to chain time**: the payload (`hive-runner/0.4`) carries `startBlock` (chain head when the
+  run began) and `startTs`. The indexer rejects a run whose claimed duration is longer than the time
+  between its start and the block it was posted in, and rejects a run that overlaps the same account's
+  previous accepted run. A long run can still be backdated once, but not claimed more often than it
+  could have been played.
+- **Run bound to its account** (client side): Post score is only offered for a Ranked run that was
+  started while that account was loaded, so a guest run cannot be posted by logging in afterwards.
+  This stops casual misuse only; the client is not a security boundary.
 - **Best-per-account** already means spamming submissions can't inflate a standing.
 - **Manual pre-payout review**: prizes are paid manually, and the public standings now carry
   `level`/`durationMs`, so top-N winners' runs are sanity-checked before any payout. This bounds the real
   financial risk to ~zero regardless of a cleverer forger.
+
+Known weak spot: `MAX_RATE` is a flat 300 points/second, roughly twice what real play can reach, because
+live block coins are worth `30 + 1.5 x ops` with no cap and busy blocks would otherwise reject honest
+runs. Flattening block-coin value in the engine would let this bound be tightened.
 
 Residual gap: a determined attacker can still craft a *plausible* fake (a score that fits the bounds).
 Layer 2 closes that.

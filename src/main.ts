@@ -50,7 +50,22 @@ const vScoreMult = $("v-scoremult");
 
 // surface any fatal error on-screen instead of a blank canvas
 function showFatal(msg: string) {
-  host.innerHTML = `<div style="color:#ff9a9a;background:#1a1420;border:1px solid #402;border-radius:12px;padding:18px 20px;max-width:440px;font-size:13px;line-height:1.5">⚠️ ${msg}</div>`;
+  const box = document.createElement("div");
+  box.style.cssText = "color:#ff9a9a;background:#1a1420;border:1px solid #402;border-radius:12px;padding:18px 20px;max-width:440px;font-size:13px;line-height:1.5";
+  box.textContent = "⚠️ " + msg; // never innerHTML: messages can carry untrusted text
+  host.replaceChildren(box);
+}
+// Dev-only URL switches (?lb=, ?dev=1) must never work on the public origin: ?lb= let a crafted
+// link feed the page attacker-controlled leaderboard data.
+const IS_LOCAL = ["localhost", "127.0.0.1"].includes(location.hostname);
+// Hive account names are [a-z0-9.-], 3–16 chars. Anything else is not rendered or put in a URL.
+const isAccountName = (s: unknown): s is string => typeof s === "string" && /^[a-z0-9.-]{3,16}$/.test(s);
+const avatarUrl = (account: string) => `https://images.hive.blog/u/${isAccountName(account) ? account : "null"}/avatar`;
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
+  const n = document.createElement(tag);
+  if (className) n.className = className;
+  if (text !== undefined) n.textContent = text;
+  return n;
 }
 window.addEventListener("unhandledrejection", (e) => showFatal("Startup error: " + ((e.reason && e.reason.message) || e.reason)));
 window.addEventListener("error", (e) => showFatal("Startup error: " + e.message));
@@ -86,37 +101,69 @@ const openContest = () => contestEl.classList.add("open");
 $("contest-toggle").addEventListener("click", () => contestEl.classList.toggle("open"));
 contestPrizeEl.textContent = CONTEST.prizeText;
 
+// A score this browser posted that the indexer hasn't published yet (shown as a "pending" row).
+interface PendingPost { account: string; score: number; week: string; at: number; }
+const PENDING_KEY = "hiverunner_pending";
+function getPendingPost(): PendingPost | null {
+  try {
+    const p = JSON.parse(localStorage.getItem(PENDING_KEY) || "null");
+    return p && isAccountName(p.account) && Number.isFinite(p.score) && typeof p.week === "string" ? p : null;
+  } catch { return null; }
+}
+
+// Keep only well-formed rows: the file is fetched over the network, so treat it as untrusted.
+function cleanBoard(raw: unknown): LeaderboardFile | null {
+  const c = (raw as LeaderboardFile | null)?.contests;
+  if (!c || typeof c !== "object") return null;
+  const contests: LeaderboardFile["contests"] = {};
+  for (const [week, rows] of Object.entries(c)) {
+    if (!Array.isArray(rows)) continue;
+    contests[week] = rows.filter((r) => r && isAccountName(r.account) && typeof r.score === "number" && Number.isFinite(r.score));
+  }
+  return { ...(raw as LeaderboardFile), contests };
+}
+
 async function loadLeaderboard() {
-  const override = new URLSearchParams(location.search).get("lb"); // dev: point at a test source
+  const override = IS_LOCAL ? new URLSearchParams(location.search).get("lb") : null; // local dev only
   const url = override || CONTEST.dataUrl;
   try {
     const res = await fetch(`${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`, { cache: "no-store" });
-    leaderboard = await res.json();
+    leaderboard = cleanBoard(await res.json());
   } catch {
     leaderboard = null;
   }
   renderContest();
 }
 
+function boardRow(rank: string, account: string, score: number, extraClass = ""): HTMLLIElement {
+  const li = el("li", "lb-row" + extraClass);
+  const img = el("img", "");
+  img.src = avatarUrl(account); img.alt = ""; img.loading = "lazy";
+  li.append(el("span", "lb-rank", rank), img, el("span", "lb-name", "@" + account), el("span", "lb-score", score.toLocaleString()));
+  return li;
+}
+
 function renderContest() {
   const week = weekId();
   contestWeekEl.textContent = "· " + week;
   const rows = leaderboard?.contests?.[week] ?? [];
-  contestListEl.innerHTML = "";
-  contestEmptyEl.style.display = rows.length ? "none" : "block";
+  // our own posted score, until the indexer publishes a row at least that good
+  let pending = getPendingPost();
+  if (pending && (pending.week !== week || rows.some((r) => r.account === pending!.account && r.score >= pending!.score))) {
+    localStorage.removeItem(PENDING_KEY);
+    pending = null;
+  }
+  contestListEl.replaceChildren();
+  contestEmptyEl.style.display = rows.length || pending ? "none" : "block";
+  if (pending) contestListEl.appendChild(boardRow("⏳", pending.account, pending.score, " pending"));
   rows.slice(0, CONTEST.topN).forEach((r, i) => {
-    const li = document.createElement("li");
-    li.className = "lb-row" + (hiveAccount && r.account === hiveAccount ? " me" : "");
     const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : String(i + 1);
-    li.innerHTML =
-      `<span class="lb-rank">${medal}</span>` +
-      `<img src="https://images.hive.blog/u/${r.account}/avatar" alt="" loading="lazy" />` +
-      `<span class="lb-name">@${r.account}</span>` +
-      `<span class="lb-score">${r.score.toLocaleString()}</span>`;
-    contestListEl.appendChild(li);
+    contestListEl.appendChild(boardRow(medal, r.account, r.score, hiveAccount && r.account === hiveAccount ? " me" : ""));
   });
-  // if the player is logged in but off the visible top-N, show their standing
-  if (hiveAccount && rows.length) {
+  if (pending) {
+    contestNote.textContent = "⏳ Your score is on-chain and waiting for the next leaderboard update — this can take a few hours.";
+  } else if (hiveAccount && rows.length) {
+    // if the player is logged in but off the visible top-N, show their standing
     const idx = rows.findIndex((r) => r.account === hiveAccount);
     contestNote.textContent = idx >= 0
       ? `You're #${idx + 1} of ${rows.length} this week — best ${rows[idx].score.toLocaleString()}.`
@@ -180,6 +227,7 @@ function tickCountdown() { contestCountEl.textContent = formatCountdown(msUntilW
 tickCountdown();
 setInterval(tickCountdown, 30000);
 void loadLeaderboard();
+setInterval(() => { if (!document.hidden) void loadLeaderboard(); }, 5 * 60 * 1000); // the indexer publishes on its own schedule
 
 // --- daily streaks + quests -------------------------------------------------
 const questsEl = $("quests");
@@ -218,15 +266,18 @@ renderQuests();
 let hiveAccount = "";
 let realEnergy: ActivityInputs | null = null; // live on-chain energy inputs when logged in
 let postCoinsThisRun = 0; // for the "collect N post-coins" daily quest
-let lastScore = 0;
-let lastLevel = 1;        // run context captured at game-over → posted for anti-cheat plausibility
-let lastDurationMs = 0;
-let lastPostCoins = 0;
+// The run in progress: who started it and when (wall clock + chain head), fixed at run start.
+interface RunStart { account: string; ranked: boolean; startTs: number; startBlock: number; }
+// A finished run waiting to be posted. It survives restarts, equips and mode changes, and is only
+// replaced when another run finishes (or cleared once posted) — one stray tap can't discard it.
+interface FinishedRun extends RunStart { score: number; level: number; durationMs: number; postCoins: number; }
+let runStart: RunStart | null = null;
+let finishedRun: FinishedRun | null = null;
+let gameOverAt = 0;       // performance.now() at game over — taps right after death are ignored
 let lastGameOver = false;
 // Ranked (default): trail perks OFF, score postable to the weekly contest (fair).
-// Free-play: trail perks ON, score NOT contest-eligible. runRanked = the mode the live run started in.
+// Free-play: trail perks ON, score NOT contest-eligible.
 let mode: "ranked" | "free" = localStorage.getItem("hiverunner_mode") === "free" ? "free" : "ranked";
-let runRanked = true;
 let started = false;   // has the current run begun?
 let paused = false;
 let overlayMode: "start" | "resume" | "playagain" | "none" = "none";
@@ -251,27 +302,36 @@ const postToast = $("post-toast") as HTMLAnchorElement;
 let postToastTimer: number | undefined;
 function showPostToast(post: HivePost) {
   postCoinsThisRun++; // a post-coin was just collected (drives a daily quest)
-  postToast.href = post.permlink
-    ? `https://peakd.com/@${post.author}/${post.permlink}`
-    : `https://peakd.com/@${post.author}`;
-  postToast.innerHTML =
-    `<img src="https://images.hive.blog/u/${post.author}/avatar" alt="" />` +
-    `<span class="pt-txt">📝 <span class="pt-name">@${post.author}</span> · ${escapeHtml(post.title)}</span>` +
-    `<span class="pt-go">open ↗</span>`;
+  const author = isAccountName(post.author) ? post.author : "";
+  postToast.href = author
+    ? `https://peakd.com/@${author}` + (post.permlink ? "/" + encodeURIComponent(post.permlink) : "")
+    : "https://peakd.com";
+  const img = el("img", ""); img.src = avatarUrl(author); img.alt = "";
+  const txt = el("span", "pt-txt");
+  txt.append("📝 ", el("span", "pt-name", "@" + author), " · " + post.title);
+  postToast.replaceChildren(img, txt, el("span", "pt-go", "open ↗"));
   postToast.classList.add("show");
   clearTimeout(postToastTimer);
   postToastTimer = window.setTimeout(() => postToast.classList.remove("show"), 4000);
-}
-function escapeHtml(s: string) {
-  return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
 }
 // Opening a post steals focus — auto-pause a running game so the player doesn't die while reading.
 $("post-toast").addEventListener("click", () => {
   if (started && !paused && !lastGameOver) togglePause();
 });
+// Postable = a finished Ranked run that was started while this same account was loaded.
+function postBlocker(): string {
+  const r = finishedRun;
+  if (!r) return "Finish a Ranked run to post a score";
+  if (!r.ranked) return "Free-play runs aren't contest-eligible — switch to Ranked to post a score";
+  if (!hiveAccount) return "Load your Hive account, then play a run to post it";
+  if (r.account !== hiveAccount) return "That run wasn't started as @" + hiveAccount + " — play a run while logged in to post it";
+  return "";
+}
 function updatePostBtn() {
-  postScoreBtn.disabled = !(lastGameOver && hiveAccount && runRanked);
-  postScoreBtn.title = runRanked ? "" : "Free-play runs aren't contest-eligible — switch to Ranked to post a score";
+  const why = postBlocker();
+  postScoreBtn.disabled = why !== "";
+  postScoreBtn.title = why;
+  postScoreBtn.textContent = !why && finishedRun ? `Post score · ${finishedRun.score.toLocaleString()}` : "Post score";
 }
 
 // Ranked ⇄ Free-play. Free-play turns on the equipped trail's perk but makes the run non-postable.
@@ -300,11 +360,17 @@ function setOverlay(mode: "start" | "resume" | "playagain" | "none") {
   overlayBtn.style.display = "block";
 }
 function updatePauseBtn() {
+  // "playing" lets short landscape screens hide the page chrome while a run is live
+  document.body.classList.toggle("playing", started && !lastGameOver && !paused);
   pauseBtn.disabled = !started || lastGameOver;
   pauseBtn.textContent = paused ? "▶ Resume" : "⏸ Pause";
 }
+function markRunStart() {
+  runStart = { account: hiveAccount, ranked: mode === "ranked", startTs: Math.floor(Date.now() / 1000), startBlock: hiveFeed.blockNum || 0 };
+}
 function beginPlay() {
   started = true; paused = false; setOverlay("none"); updatePauseBtn();
+  markRunStart();
   const { streak, increased } = markPlayed(); // count today's play toward the streak
   if (increased) { showToast(`🔥 ${streak}-day streak!`); renderQuests(); }
 }
@@ -409,6 +475,7 @@ async function loadEnergy(user: string) {
     realEnergy = await getEnergyInputs(user);
     const a = makeActivity(realEnergy);
     energyEl.textContent = `⚡ ${a.energy}/15 · ${Math.round(a.vitality * 100)}%`;
+    if (!started) start(false); // the ready scene was built with guest defaults — rebuild with the real values
     energyEl.title = `Live Hive energy — RC/mana ${realEnergy.manaPct.toFixed(0)}% · ${realEnergy.ops24h} ops/24h · ${realEnergy.steps.toLocaleString()} Actifit steps → energy ${a.energy}/15. Powers bonus lives, jump & score multiplier.`;
   } catch { /* keep whatever we had */ }
 }
@@ -437,22 +504,31 @@ logoutBtn.addEventListener("click", () => {
 $("hive-load").addEventListener("click", () => loadHive(cleanName(hiveUser.value)));
 hiveUser.addEventListener("keydown", (e) => { if (e.key === "Enter") void doLogin(); });
 postScoreBtn.addEventListener("click", async () => {
-  if (!hiveAccount) return;
+  const run = finishedRun;
+  if (!run || postBlocker()) return;
+  if (!hasKeychain()) {
+    hiveStatus.textContent = "Posting needs Hive Keychain — install the browser extension, or on a phone open this page inside the Keychain app's browser.";
+    showToast("Hive Keychain not found");
+    return;
+  }
   postScoreBtn.disabled = true;
   hiveStatus.textContent = "posting score…";
   const community = communitySelect.value === FOLLOWS_OPT ? "" : communitySelect.value;
-  const r = await postScore(hiveAccount, community, lastScore, currentSpec.meta.title, weekId(),
-    { level: lastLevel, durationMs: lastDurationMs, postCoins: lastPostCoins });
+  const r = await postScore(run.account, community, run.score, currentSpec.meta.title, weekId(),
+    { level: run.level, durationMs: run.durationMs, postCoins: run.postCoins, startTs: run.startTs, startBlock: run.startBlock });
   hiveStatus.textContent = r.ok ? "score posted on-chain ✓" : "post failed: " + (r.error ?? "");
   showToast(r.ok ? "✓ Score entered in this week's contest" : "Post failed");
   if (r.ok) {
-    contestNote.textContent = "⏳ Your run is on-chain — you'll appear on the board within ~15 min (next indexer run).";
+    const pending: PendingPost = { account: run.account, score: run.score, week: weekId(), at: Date.now() };
+    localStorage.setItem(PENDING_KEY, JSON.stringify(pending));
+    if (finishedRun === run) finishedRun = null; // posted — nothing left to post until the next run ends
     openContest();
-    setTimeout(() => void loadLeaderboard(), 20000); // optimistic re-check
+    renderContest();
   }
   updatePostBtn();
 });
 overlayBtn.addEventListener("click", () => {
+  if (performance.now() - gameOverAt < DEATH_TAP_GUARD_MS) return;
   if (overlayMode === "playagain") start(true);
   else if (overlayMode === "resume") resumePlay();
   else beginPlay();
@@ -467,6 +543,7 @@ $("restart-scene").addEventListener("click", () => { start(false); showToast("�
 }
 
 // --- Pixi app + game lifecycle ---------------------------------------------
+const DEATH_TAP_GUARD_MS = 900; // players mash jump as they die; don't let that restart the run
 const app = new Application();
 let engine: ArchetypeEngine | null = null;
 
@@ -490,14 +567,14 @@ async function boot() {
   // tap the game to start / resume / restart (mobile-friendly); this listener runs before the
   // engine's jump listener, so stopImmediatePropagation prevents an accidental jump.
   app.canvas.addEventListener("pointerdown", (e) => {
-    if (lastGameOver) { e.stopImmediatePropagation(); start(true); }
+    if (lastGameOver) { e.stopImmediatePropagation(); if (performance.now() - gameOverAt >= DEATH_TAP_GUARD_MS) start(true); }
     else if (!started) { e.stopImmediatePropagation(); beginPlay(); }
     else if (paused) { e.stopImmediatePropagation(); resumePlay(); }
   });
   // canvas fits the remaining flex space automatically (CSS max-width/height keep aspect)
 
   // dev panel (mock activity sliders) is hidden from players; show with ?dev=1
-  if (new URLSearchParams(location.search).get("dev") === "1") {
+  if (IS_LOCAL && new URLSearchParams(location.search).get("dev") === "1") {
     $("panel").style.display = "block";
     $("app").style.height = "auto"; // let the page scroll to reach the dev panel
     contestEl.classList.add("open"); // show the contest card expanded while developing
@@ -528,7 +605,7 @@ function start(autostart = false) {
   paused = false;
   started = autostart;
   postCoinsThisRun = 0;
-  runRanked = mode === "ranked"; // this run's contest eligibility is locked in at start
+  if (autostart) markRunStart(); else runStart = null;
   updatePostBtn();
 
   $("game-title").textContent = currentSpec.meta.title;
@@ -568,8 +645,9 @@ function start(autostart = false) {
 function onState(s: EngineState) {
   if (s.over && !lastGameOver) {
     lastGameOver = true;
-    lastScore = s.score;
-    lastLevel = s.level; lastDurationMs = s.elapsed; lastPostCoins = postCoinsThisRun; // for the on-chain post
+    gameOverAt = performance.now();
+    // keep this result postable until it is posted or the next run finishes
+    if (runStart) finishedRun = { ...runStart, score: s.score, level: s.level, durationMs: s.elapsed, postCoins: postCoinsThisRun };
     // advance daily quests with this run's results
     const done = recordRun({ score: s.score, level: s.level, surviveSec: s.elapsed / 1000, postCoins: postCoinsThisRun });
     for (const label of done) showToast(`🎯 Quest complete: ${label}`);
