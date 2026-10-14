@@ -556,6 +556,13 @@ async function boot() {
       height: currentSpec.world.height,
       background: parseBg(currentSpec.world.palette?.[2]) ?? 0x101018,
       antialias: true,
+      // The world is 640x480 logical and CSS now scales the canvas past 1000px on a desktop,
+      // so render into a 1280x960 buffer or the upscale is visibly soft. Flat 2x rather than
+      // devicePixelRatio: this is a 60fps game and a retina multiplier would quadruple the
+      // fill cost for sharpness nobody asked for. Raise it if large screens still look soft.
+      // autoDensity stays off — CSS owns the displayed size, Pixi owns the pixel buffer.
+      resolution: 2,
+      autoDensity: false,
       preference: "webgl", // WebGL is universally stable; WebGPU can fail to init on some GPUs
     });
   } catch (err) {

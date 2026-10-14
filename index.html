@@ -57,9 +57,44 @@
       .hint { font-size: 11px; color: #7a7a92; margin: 2px 0 0; }
       #stage-host { position: relative; flex: 0 0 auto; width: 100%; display: flex;
         align-items: center; justify-content: center; }
+      /* The 640px cap here was the world's LOGICAL width, so on anything wider than a
+         laptop the stage rendered 1:1 in the middle of a sea of background — roughly a third
+         of a 1900px screen. Height is now the only limit. */
       #stage-host canvas { display: block; aspect-ratio: 4 / 3; height: auto;
-        width: min(100%, 640px, calc(var(--stage-h) * 4 / 3)); border-radius: 12px;
+        width: min(100%, calc(var(--stage-h) * 4 / 3)); border-radius: 12px;
         box-shadow: 0 6px 30px #0008; touch-action: none; }
+      /* ── Wide screens: stage on the left, everything else beside it ───────────────────
+         Stacked in one centred column, three rows of chrome sat ABOVE the canvas and pushed
+         it down the page while both sides stayed empty. Moving the account row, controls and
+         cards into a sidebar gives the stage its width and its height back. Nothing is
+         removed — it moves. Rows are assigned explicitly rather than left to auto-flow, so
+         the order cannot drift if the markup changes.
+
+         Below 1100px none of this applies and the original single column is used unchanged. */
+      @media (min-width: 1100px) {
+        :root { --stage-h: max(320px, calc(100dvh - 128px)); }
+        #app { display: grid; align-content: start;
+          grid-template-columns: minmax(0, 1fr) 340px;
+          column-gap: 20px; row-gap: 8px;
+          max-width: 1800px; margin: 0 auto; padding: 10px 20px; }
+        .brandline  { grid-column: 1 / -1; grid-row: 1; }
+        .sub        { grid-column: 1 / -1; grid-row: 2; }
+        #stage-host { grid-column: 1; grid-row: 3 / span 6; align-self: start; }
+        .hive-bar   { grid-column: 2; grid-row: 3; flex-wrap: wrap; justify-content: flex-start; }
+        .ctrl-row   { grid-column: 2; grid-row: 4; }
+        .mode-row   { grid-column: 2; grid-row: 5; flex-wrap: wrap; }
+        #quests     { grid-column: 2; grid-row: 6; }
+        #wardrobe   { grid-column: 2; grid-row: 7; }
+        #contest    { grid-column: 2; grid-row: 8; }
+        .hint       { grid-column: 1 / -1; grid-row: 9; text-align: center; }
+        #panel      { grid-column: 2; grid-row: 10; }
+        /* the sidebar fills its column rather than sitting at a centred content width */
+        .hive-bar, .ctrl-row, .mode-row, #quests, #wardrobe, #contest {
+          width: 100%; max-width: none; box-sizing: border-box; margin: 0; }
+        /* the cards can breathe now that they are not competing with the stage for height */
+        #wardrobe-grid { max-height: 320px; }
+      }
+
       /* Short landscape screens (a rotated phone): while a run is live, hide everything but the
          controls and give the game the whole viewport. */
       @media (orientation: landscape) and (max-height: 520px) {
