@@ -35,6 +35,25 @@ export interface RaceGhost { id: string; label: string; avatar: string; score: n
 interface GhostRunner { def: RaceGhost; node: Container; passed: boolean; offsetY: number; phase: number; }
 
 const GRAVITY = 1.0;
+// Fraction of upward velocity kept when the jump button is released mid-rise.
+const JUMP_CUT = 0.45;
+// Hazard width is derived from the OVERLAP we want, not set as a fixed size.
+//
+// The jump arc is fixed in TIME (533ms) while the world scrolls faster each level, so a
+// fixed-width block occupies fewer and fewer frames of that arc — the window to time the
+// press widened from ~162ms at level 1 to ~311ms later on, and the game got EASIER the
+// longer you survived. Scaling width with scroll speed holds the overlap, and therefore the
+// difficulty, roughly constant: w = overlapFrames * scroll - avatarWidth.
+//
+// The chain then sets how tight that overlap is. A quiet block is a narrow hop; a busy one
+// is a wall you have to commit to. Same obstacle either way, but the shape in front of you
+// genuinely IS that Hive block rather than decoration behind an unchanging one.
+const HAZARD_OVERLAP_QUIET = 16.0;  // frames of overlap on a near-empty block
+const HAZARD_OVERLAP_BUSY  = 18.6;  // ... and on a busy one
+const HAZARD_OPS_FULL = 60;         // ops at which a block counts as fully busy
+const HAZARD_W_MIN = 26;
+const HAZARD_W_MAX = 104;           // keeps very late blocks a sane size on a 640px world
+const MAX_START_LIVES = 5;      // ceiling on base lives + energy/daily bonuses
 const HIVE_RED = 0xe31337;
 
 // Story: the run reads as a descent deeper into the chain (see docs/story.md). Level names cycle,
@@ -104,7 +123,9 @@ export class RunnerEngine {
   private bannerTimer = 0;
   private bannerPersist = false;
   private phase: "play" | "draining" | "complete" = "play";
-  private completeTimer = 0;
+  // Ops in the most recent Hive block, which sets how wide the next hazards are. Starts
+  // mid-range so the first seconds before a block arrives are not trivially easy.
+  private blockOps = 24;
 
   private state: EngineState;
   private sx: number;
@@ -143,8 +164,12 @@ export class RunnerEngine {
     this.keys.add(e.key);
     if (isJumpKey(e.key)) { e.preventDefault(); this.jump(); }
   };
-  private boundKeyUp = (e: KeyboardEvent) => this.keys.delete(e.key);
+  private boundKeyUp = (e: KeyboardEvent) => {
+    this.keys.delete(e.key);
+    if (isJumpKey(e.key)) this.cutJump();
+  };
   private boundTap = () => this.jump();
+  private boundTapEnd = () => this.cutJump();
 
   constructor(
     private app: Application,
@@ -174,7 +199,10 @@ export class RunnerEngine {
     this.charY = this.groundCenterY;
 
     this.state = {
-      score: 0, lives: (spec.rules.lives ?? 3) + bonusLives, level: 1,
+      // Bonuses used to stack to as many as 14 lives (up to +5 from energy, +6 from daily
+      // streak and quests) in a game where every hazard is individually clearable, which
+      // made death close to unreachable. Bonuses still help; they no longer remove the stakes.
+      score: 0, lives: Math.min(MAX_START_LIVES, (spec.rules.lives ?? 3) + bonusLives), level: 1,
       target: this.targetForLevel(1), caught: 0, elapsed: 0, over: false,
     };
     this.maxLives = this.state.lives;
@@ -237,6 +265,8 @@ export class RunnerEngine {
     window.addEventListener("keydown", this.boundKeyDown);
     window.addEventListener("keyup", this.boundKeyUp);
     app.canvas.addEventListener("pointerdown", this.boundTap);
+    app.canvas.addEventListener("pointerup", this.boundTapEnd);
+    app.canvas.addEventListener("pointercancel", this.boundTapEnd);
   }
 
   update(deltaMS: number) {
@@ -266,14 +296,8 @@ export class RunnerEngine {
       this.levelTimeMs += dt;
       this.scoreExact += (dt / 100) * this.scoreMultiplier * this.perkScoreMult;
       this.state.score = Math.floor(this.scoreExact);
-      if (this.levelTimeMs >= this.state.target * 1000) this.phase = "draining";
+      if (this.levelTimeMs >= this.state.target * 1000) this.beginNextLevel();
       this.syncHud();
-    } else if (this.phase === "draining") {
-      this.moveAndCollide(f);
-      if (this.obstacles.length === 0) this.enterComplete();
-    } else {
-      this.completeTimer -= dt;
-      if (this.completeTimer <= 0) this.beginNextLevel();
     }
 
     this.onState?.(this.state);
@@ -284,6 +308,15 @@ export class RunnerEngine {
   private jump() {
     if (this.state.over) return;
     if (this.grounded) { this.vy = -this.jumpV; this.grounded = false; }
+  }
+
+  // Release the button early and the rise is cut short — a tap is a hop, a hold is a full
+  // jump. Before this the jump was a single fixed impulse that cleared every object in the
+  // game by roughly 3x, so there was never a question of HOW high, only WHEN. One input,
+  // one answer. JUMP_CUT keeps enough of the rise that a quick tap still clears a narrow
+  // block; it is the difference between a timing test and a decision.
+  private cutJump() {
+    if (!this.grounded && this.vy < 0) this.vy *= JUMP_CUT;
   }
 
   // --- Hive integration: run across the chain --------------------------------
@@ -298,6 +331,8 @@ export class RunnerEngine {
   // Each real Hive block => a pulse + a floating "block coin"; a big real transfer => a golden whale coin.
   private onNewBlock(info: BlockInfo) {
     this.pulse();
+    // This block now shapes the next few seconds of obstacles, not just the coin it drops.
+    this.blockOps = info.opCount;
     // block coin grows with the number of ops in the block (busier block = bigger reward)
     const r = Math.min(46, 15 + info.opCount * 0.9);
     const label = info.witness ? `#${info.num}\n@${info.witness}` : `#${info.num}`;
@@ -666,14 +701,12 @@ export class RunnerEngine {
 
   private targetForLevel(level: number) { return 10 + level * 4; } // seconds
 
-  private enterComplete() {
-    this.phase = "complete";
-    this.completeTimer = 1200;
-    this.showBanner("Block delivered!", `handed off to the Witness · ${levelArc(this.state.level).name} cleared`, true);
-  }
-
+  // The level used to end by draining every obstacle off-screen, then holding a persistent
+  // banner for 1200ms, then showing another — 2.5-4s of dead air every 14-50s, which at
+  // level 1 was about a fifth of the level spent not playing. An endless runner's whole
+  // appeal is unbroken flow. The banner still fires; the world no longer stops for it.
   private beginNextLevel() {
-    this.phase = "play";
+    this.showBanner("Block delivered!", `handed off to the Witness · ${levelArc(this.state.level).name} cleared`);
     this.state.level += 1;
     this.levelTimeMs = 0;
     this.state.target = this.targetForLevel(this.state.level);
@@ -714,13 +747,26 @@ export class RunnerEngine {
   private minHazardIntervalMs(e: EntityDef): number {
     const vx = Math.max(0.5, (e.speed ?? 4.5) * this.speedMult); // px/frame
     const airFrames = (2 * this.jumpV) / GRAVITY;                // up + down
-    const clearanceFrames = airFrames + (34 + this.sx) / vx;     // + block + body widths
+    const clearanceFrames = airFrames + (this.hazardWidth(e) + this.sx) / vx; // this block + body
     return clearanceFrames * 16.667 * 1.15;                      // +15% safety buffer
+  }
+
+  // Wider hazard => more frames overlapping the jump arc => a tighter window to time it.
+  // This is what stops the game getting EASIER as it speeds up: the arc is fixed in time
+  // while the world scrolls faster, so without this the window widens from ~167ms at level
+  // 1 to ~310ms later on. Tying width to chain traffic also makes the block in front of you
+  // genuinely BE that Hive block, rather than decoration behind the same obstacle.
+  private hazardWidth(e: EntityDef): number {
+    const scroll = Math.max(0.5, (e.speed ?? 4.5) * this.speedMult);
+    const busy = Math.min(1, this.blockOps / HAZARD_OPS_FULL);
+    const overlap = HAZARD_OVERLAP_QUIET + (HAZARD_OVERLAP_BUSY - HAZARD_OVERLAP_QUIET) * busy;
+    const w = overlap * scroll - this.sx;
+    return Math.max(HAZARD_W_MIN, Math.min(HAZARD_W_MAX, Math.round(w)));
   }
 
   private spawnObstacle(e: EntityDef) {
     const isPickup = e.role === "pickup";
-    const w = isPickup ? 28 : 34;
+    const w = isPickup ? 28 : this.hazardWidth(e);
     const h = isPickup ? 28 : 42;
     const gfx = new Graphics();
     if (isPickup) { drawCoin(gfx, w / 2); gfx.addChild(makeHiveLogo(w * 0.62)); }
@@ -956,6 +1002,8 @@ export class RunnerEngine {
     window.removeEventListener("keydown", this.boundKeyDown);
     window.removeEventListener("keyup", this.boundKeyUp);
     this.app.canvas.removeEventListener("pointerdown", this.boundTap);
+    this.app.canvas.removeEventListener("pointerup", this.boundTapEnd);
+    this.app.canvas.removeEventListener("pointercancel", this.boundTapEnd);
     for (const o of this.obstacles) o.gfx.destroy();
     this.obstacles = [];
     for (const b of this.billboards) b.node.destroy();
