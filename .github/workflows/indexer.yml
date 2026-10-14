@@ -3,9 +3,17 @@ name: Contest indexer
 on:
   schedule:
     # Asked for every 15 minutes, but GitHub runs scheduled workflows best-effort: in practice
-    # this repo sees a run every 3-9 hours. For a dependable cadence, trigger workflow_dispatch
-    # from an external cron (see docs/operations.md).
-    - cron: "*/15 * * * *"
+    # this repo saw a run every 3-9 hours, averaging 5.5 - roughly a 20x shortfall.
+    #
+    # Deliberately OFF the quarter hour. Almost every cron on GitHub is written */15 or */5,
+    # so :00 :15 :30 :45 are the most contended slots on the platform and a low-activity free
+    # repo queues behind everything else. Odd minutes dodge the crush. This is a mitigation,
+    # not a fix - scheduled events are best-effort by design.
+    #
+    # For a dependable cadence, trigger workflow_dispatch from an external cron instead
+    # (see docs/operations.md). workflow_dispatch is user-initiated and is not throttled
+    # the same way.
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
 
 permissions:
