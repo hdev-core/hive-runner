@@ -1,5 +1,16 @@
 {
-  "updated": 1791999097202,
+  "updated": 1792011073057,
   "current": "2026-W42",
-  "contests": {}
+  "contests": {
+    "2026-W42": [
+      {
+        "account": "mcfarhat",
+        "score": 4299,
+        "game": "Hive Runner",
+        "ts": 1792010385,
+        "level": 5,
+        "durationMs": 118795
+      }
+    ]
+  }
 }
