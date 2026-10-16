@@ -1,5 +1,5 @@
 {
-  "lastBlock": 110831643,
+  "lastBlock": 110835267,
   "weeks": {
     "2026-W42": {
       "mcfarhat": {
@@ -11,7 +11,5 @@
       }
     }
   },
-  "lastRun": {
-    "mcfarhat": 1792010385
-  }
+  "lastRun": {}
 }
